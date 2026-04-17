@@ -1,71 +1,37 @@
-# debug-drive README
+# Debug Drive
 
-This is the README for your extension "debug-drive". After writing up a brief description, we recommend including the following sections.
+Debug Drive is a VS Code extension prototype for RL-inspired, multi-agent code debugging. It coordinates Debugger, Critic, and Tester agents, uses execution feedback from a sandbox, stores accepted fix memories, performs vector-style retrieval, and records learning/reward traces for research experimentation.
 
-## Features
+## Current Capabilities
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Multi-agent debugging loop with Debugger, Critic, and Tester roles.
+- Iterative critique, revision, validation, and final accept/reject decisions.
+- Sandboxed patch artifacts, working-copy files, and per-run experiment summaries.
+- Local retrieval memory for accepted fixes.
+- Vector-style semantic retrieval with similarity scores and thresholding.
+- Learning records with rewards, reward explanations, success rate, and retrieved-memory influence.
+- Repository namespace tracking for future cross-repo indexing.
 
-For example if there is an image subfolder under your extension project workspace:
+## Development
 
-\!\[feature X\]\(images/feature-x.png\)
+Install dependencies:
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+```powershell
+npm install
+```
 
-## Requirements
+Compile:
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+```powershell
+npm run compile
+```
 
-## Extension Settings
+Run the extension from VS Code using `Run Extension`, then execute:
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+```text
+Debug Drive: Run Debug Session
+```
 
-For example:
+## Prototype Status
 
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+This project is currently a research prototype. Candidate patches are materialized into sandbox working-copy files and artifacts, but are not yet applied back to the live repository. Future phases will add real embeddings, LLM-backed agents, true patch application/rollback, benchmark evaluation, and production hardening.
