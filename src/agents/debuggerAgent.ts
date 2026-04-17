@@ -1,4 +1,4 @@
-import { BugContext, CritiqueResult, PatchProposal, RetrievalRecord } from '../types/agent';
+import { BugContext, CodeChunkRecord, CritiqueResult, PatchProposal, RetrievalRecord } from '../types/agent';
 
 export class DebuggerAgent {
   proposeFix(
@@ -6,6 +6,7 @@ export class DebuggerAgent {
     previousCritique?: CritiqueResult,
     round = 1,
     retrievedMemories: RetrievalRecord[] = [],
+    retrievedCodeChunks: CodeChunkRecord[] = [],
   ): PatchProposal {
     const targetFile = bugContext.filePath ?? 'unknown-file';
     const summary =
@@ -13,13 +14,18 @@ export class DebuggerAgent {
         ? `Proposed fix for ${targetFile}`
         : `Revised fix for ${targetFile} after critique`;
 
-    const rationaleParts = [
+        const rationaleParts = [
       `Problem: ${bugContext.problemStatement}`,
       bugContext.errorOutput ? `Observed error: ${bugContext.errorOutput}` : undefined,
       bugContext.failingTest ? `Failing test: ${bugContext.failingTest}` : undefined,
       previousCritique ? `Addressing critique: ${previousCritique.improvementSuggestions.join(' | ')}` : undefined,
       retrievedMemories.length > 0
         ? `Retrieved memories: ${retrievedMemories.map((record) => record.summary).join(' | ')}`
+        : undefined,
+      retrievedCodeChunks.length > 0
+        ? `Retrieved code context: ${retrievedCodeChunks
+            .map((chunk) => `${chunk.filePath}:${chunk.startLine}-${chunk.endLine}`)
+            .join(' | ')}`
         : undefined,
     ].filter(Boolean);
 

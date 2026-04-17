@@ -75,6 +75,7 @@ export interface EmbeddingRecord {
     targetFilePath?: string;
     language?: string;
     tags: string[];
+    embeddingProvider: string;
     createdAt: number;
   };
 }
@@ -95,5 +96,84 @@ export interface LearningRecord {
   reward: number;
   rewardExplanation: string[];
   retrievedMemoryIds: string[];
+  createdAt: number;
+}
+export interface CodeChunkRecord {
+  id: string;
+  repositoryPath: string;
+  repositoryName: string;
+  filePath: string;
+  language?: string;
+  chunkIndex: number;
+  content: string;
+  startLine: number;
+  endLine: number;
+  embedding: number[];
+  embeddingProvider: string;
+  createdAt: number;
+}
+
+export interface ModelTranscript {
+  id: string;
+  sessionId: string;
+  agentRole: AgentRole;
+  providerName: string;
+  modelName: string;
+  promptMessages: {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+  }[];
+  responseContent: string;
+  parsedSuccessfully: boolean;
+  parseError?: string;
+  createdAt: number;
+}
+
+export interface ParsedPatchLine {
+  type: 'context' | 'add' | 'remove';
+  content: string;
+}
+
+export interface ParsedPatchHunk {
+  header: string;
+  lines: ParsedPatchLine[];
+}
+
+export interface ParsedFilePatch {
+  oldFilePath: string;
+  newFilePath: string;
+  hunks: ParsedPatchHunk[];
+}
+
+export interface ParsedPatch {
+  files: ParsedFilePatch[];
+}
+
+export interface BenchmarkCase {
+  id: string;
+  name: string;
+  repositoryName: string;
+  targetFilePath: string;
+  language?: string;
+  problemStatement: string;
+  failingCommand: string;
+  errorOutput?: string;
+  expectedFinalAction: 'accept' | 'reject';
+  tags: string[];
+}
+
+export interface BenchmarkRunResult {
+  id: string;
+  benchmarkCaseId: string;
+  mode: 'normal' | 'no-rag' | 'no-critic';
+  finalAction: 'revise' | 'test' | 'accept' | 'reject';
+  testPassed: boolean;
+  criticApproved: boolean;
+  roundsUsed: number;
+  maxRounds: number;
+  reward: number;
+  retrievedMemoryCount: number;
+  retrievedCodeChunkCount: number;
+  success: boolean;
   createdAt: number;
 }

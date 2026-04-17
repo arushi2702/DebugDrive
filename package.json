@@ -13,15 +13,39 @@
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      
       {
         "command": "debug-drive.runDebugSession",
         "title": "Debug Drive: Run Debug Session"
-      }
+      },
+      {
+        "command": "debug-drive.indexRepository",
+        "title": "Debug Drive: Index Repository"
+      },
+      {
+        "command": "debug-drive.applyAcceptedPatch",
+        "title": "Debug Drive: Apply Accepted Patch"
+      },
+      {
+        "command": "debug-drive.seedBenchmarkCase",
+        "title": "Debug Drive: Seed Benchmark Case"
+      },
+      {
+  "command": "debug-drive.runBenchmarks",
+  "title": "Debug Drive: Run Benchmarks"
+},
+{
+  "command": "debug-drive.runAblationComparison",
+  "title": "Debug Drive: Run Ablation Comparison"
+}
+
+
     ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
+    "demo:test": "npm run compile && node ./out/demo/items.test.js",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",

@@ -1,10 +1,14 @@
-import { AgentDecision, AgentMessage, BugContext, PatchProposal, TestResult } from './agent';
+import { AgentDecision, AgentMessage, BugContext, ModelTranscript, ParsedPatch, PatchProposal, TestResult } from './agent';
 
 export interface PatchWorkspaceState {
   targetFilePath?: string;
   originalContent?: string;
+  rollbackContent?: string;
+  rollbackAvailable: boolean;
   candidateContent?: string;
   candidateDiff?: string;
+  parsedPatch?: ParsedPatch;
+  acceptedPatchPath?: string;
   tempFilePath?: string;
   tempPatchedFilePath?: string;
   sandboxRootPath?: string;
@@ -20,6 +24,7 @@ export interface DebugSession {
   currentRound: number;
   maxRounds: number;
   latestPatch?: PatchProposal;
+  modelTranscripts: ModelTranscript[];
   latestTestResult?: TestResult;
   finalDecision?: AgentDecision;
   patchWorkspace?: PatchWorkspaceState;

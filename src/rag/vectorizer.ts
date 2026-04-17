@@ -1,7 +1,11 @@
-export class SimpleVectorizer {
+import { EmbeddingProvider } from './embeddingProvider';
+
+export class SimpleVectorizer implements EmbeddingProvider {
+  readonly name = 'simple-deterministic-vectorizer';
+
   constructor(private readonly dimensions = 16) {}
 
-  embedText(text: string): number[] {
+  async embedText(text: string): Promise<number[]> {
     const vector = new Array<number>(this.dimensions).fill(0);
 
     for (let index = 0; index < text.length; index += 1) {

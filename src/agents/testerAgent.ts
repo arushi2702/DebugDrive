@@ -18,13 +18,16 @@ export class TesterAgent {
         patchWorkspace.targetFilePath,
         patchWorkspace.candidateContent,
         patchWorkspace.originalContent,
+        patchWorkspace.parsedPatch,
       );
 
       patchWorkspace.tempFilePath = applicationResult.tempFilePath;
+      patchWorkspace.acceptedPatchPath = applicationResult.acceptedPatchPath;
       patchWorkspace.tempPatchedFilePath = applicationResult.tempPatchedFilePath;
       patchWorkspace.sandboxRootPath = applicationResult.sandboxRootPath;
       patchWorkspace.sandboxProjectRootPath = applicationResult.sandboxProjectRootPath;
       patchWorkspace.materialized = applicationResult.applied;
+      patchWorkspace.rollbackAvailable = applicationResult.applied;
 
       if (!applicationResult.applied) {
         return {
@@ -37,7 +40,7 @@ export class TesterAgent {
       }
 
       const executionCwd = patchWorkspace.sandboxProjectRootPath ?? repositoryPath;
-      const executionResult = await this.sandbox.runCommand(executedCommand, executionCwd);
+      const executionResult = await this.sandbox.runCommand(executedCommand, executionCwd, repositoryPath);
 
       const patchDetails = [
         `Patch Artifact: ${applicationResult.tempFilePath ?? '(none)'}`,

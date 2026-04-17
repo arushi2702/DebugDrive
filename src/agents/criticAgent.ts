@@ -29,7 +29,8 @@ export class CriticAgent {
     }
 
     const rationale = proposal.rationale.toLowerCase();
-    if (hasCodeContext && !rationale.includes('addressing critique') && proposal.confidence >= 0.5) {
+    const isRevision = proposal.summary.toLowerCase().includes('revised');
+    if (isRevision && hasCodeContext && !rationale.includes('addressing critique') && proposal.confidence >= 0.5) {
       issues.push('Proposal confidence increased without clearly explaining what changed.');
       improvementSuggestions.push('Explain which critique points were incorporated into the revised patch.');
     }

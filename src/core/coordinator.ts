@@ -1,23 +1,34 @@
 import { CriticAgent } from '../agents/criticAgent';
 import { DebuggerAgent } from '../agents/debuggerAgent';
+import { LlmDebuggerAgent } from '../agents/llmDebuggerAgent';
 import { TesterAgent } from '../agents/testerAgent';
-import { RetrievalRecord } from '../types/agent';
 import {
   AgentDecision,
   AgentMessage,
   BugContext,
+  CodeChunkRecord,
   CritiqueResult,
   PatchProposal,
+  RetrievalRecord,
   TestResult,
 } from '../types/agent';
 import { DebugSession } from '../types/session';
+import { ModelProvider } from '../llm/modelProvider';
+import { MockModelProvider } from '../llm/mockModelProvider';
+import { PatchSafetyValidator } from '../llm/patchSafetyValidator';
 
 export class DebugCoordinator {
-  constructor(
+    constructor(
     private readonly debuggerAgent = new DebuggerAgent(),
+    modelProvider: ModelProvider = new MockModelProvider(),
     private readonly criticAgent = new CriticAgent(),
-    private readonly testerAgent = new TesterAgent(),
-  ) {}
+        private readonly testerAgent = new TesterAgent(),
+    private readonly patchSafetyValidator = new PatchSafetyValidator(),
+  ) {
+    this.llmDebuggerAgent = new LlmDebuggerAgent(modelProvider);
+  }
+
+  private readonly llmDebuggerAgent: LlmDebuggerAgent;
 
   createSession(bugContext: BugContext, maxRounds = 3): DebugSession {
     const now = Date.now();
@@ -26,11 +37,14 @@ export class DebugCoordinator {
       id: `session-${now}`,
       bugContext,
       messages: [],
+      modelTranscripts: [],
       currentRound: 0,
       maxRounds,
       patchWorkspace: {
         targetFilePath: bugContext.filePath,
         originalContent: bugContext.relevantCode,
+        rollbackContent: bugContext.relevantCode,
+        rollbackAvailable: false,
         candidateContent: undefined,
         candidateDiff: undefined,
         tempFilePath: undefined,
@@ -45,11 +59,12 @@ export class DebugCoordinator {
     async runSession(
     session: DebugSession,
     retrievedMemories: RetrievalRecord[] = [],
+    retrievedCodeChunks: CodeChunkRecord[] = [],
   ): Promise<AgentDecision> {
     let latestDecision: AgentDecision = { nextAction: 'revise' };
 
     while (this.shouldContinue(session)) {
-        latestDecision = await this.runSingleRound(session, retrievedMemories);
+        latestDecision = await this.runSingleRound(session, retrievedMemories, retrievedCodeChunks);
 
       if (latestDecision.nextAction === 'accept' || latestDecision.nextAction === 'reject') {
         session.finalDecision = latestDecision;
@@ -64,19 +79,48 @@ export class DebugCoordinator {
     async runSingleRound(
     session: DebugSession,
     retrievedMemories: RetrievalRecord[] = [],
+    retrievedCodeChunks: CodeChunkRecord[] = [],
   ): Promise<AgentDecision> {
     this.advanceRound(session);
 
     const previousCritique = this.findLatestCritique(session);
-    const patchProposal = this.debuggerAgent.proposeFix(
+    const fallbackProposal = this.debuggerAgent.proposeFix(
       session.bugContext,
       previousCritique,
       session.currentRound,
       retrievedMemories,
+      retrievedCodeChunks,
     );
+    const llmDebuggerResult = await this.llmDebuggerAgent.proposeFix(
+      session.id,
+      session.bugContext,
+      previousCritique,
+      session.currentRound,
+      retrievedMemories,
+      retrievedCodeChunks,
+      fallbackProposal,
+    );
+      const safetyResult = this.patchSafetyValidator.validate(
+      session.bugContext,
+      llmDebuggerResult.proposal,
+    );
+    const patchProposal = safetyResult.safe ? llmDebuggerResult.proposal : fallbackProposal;
 
+    session.modelTranscripts.push(...llmDebuggerResult.transcripts);
+    if (!safetyResult.safe) {
+      this.addMessage(session, {
+        role: 'critic',
+        content: `Safety pre-check rejected model patch: ${safetyResult.issues.join(' | ')}`,
+        timestamp: Date.now(),
+      });
+    }
     this.recordPatch(session, patchProposal);
     this.updatePatchWorkspace(session, patchProposal);
+    if (session.patchWorkspace) {
+      session.patchWorkspace.parsedPatch = safetyResult.safe
+        ? safetyResult.parsedPatch
+        : undefined;
+    }
 
     this.addMessage(session, {
       role: 'debugger',
@@ -213,6 +257,8 @@ export class DebugCoordinator {
       session.patchWorkspace = {
         targetFilePath: session.bugContext.filePath,
         originalContent: session.bugContext.relevantCode,
+        rollbackContent: session.bugContext.relevantCode,
+        rollbackAvailable: false,
         candidateContent: undefined,
         candidateDiff: undefined,
         tempFilePath: undefined,
@@ -223,7 +269,10 @@ export class DebugCoordinator {
 
     session.patchWorkspace.targetFilePath = session.bugContext.filePath;
     session.patchWorkspace.originalContent = session.bugContext.relevantCode;
+    session.patchWorkspace.rollbackContent = session.bugContext.relevantCode;
+    session.patchWorkspace.rollbackAvailable = false;
     session.patchWorkspace.candidateDiff = patch.diffText;
+    session.patchWorkspace.parsedPatch = undefined;
     session.patchWorkspace.candidateContent = patch.candidateContent;
     session.patchWorkspace.tempFilePath = undefined;
     session.patchWorkspace.materialized = false;

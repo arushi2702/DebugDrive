@@ -1,9 +1,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { EmbeddingRecord, RetrievalRecord } from '../types/agent';
+import { CodeChunkRecord, EmbeddingRecord, RetrievalRecord } from '../types/agent';
 
 export interface RankedEmbeddingRecord {
   record: EmbeddingRecord;
+  similarity: number;
+}
+export interface RankedCodeChunkRecord {
+  record: CodeChunkRecord;
   similarity: number;
 }
 
@@ -18,6 +22,49 @@ export class RetrievalStore {
       }))
       .sort((left, right) => right.similarity - left.similarity)
       .slice(0, topK);
+  }
+
+    private get codeChunkFilePath(): string {
+    return path.join(this.storageDir, 'code-chunk-records.json');
+  }
+
+    loadCodeChunkRecords(): CodeChunkRecord[] {
+    if (!fs.existsSync(this.codeChunkFilePath)) {
+      return [];
+    }
+
+    try {
+      const raw = fs.readFileSync(this.codeChunkFilePath, 'utf8');
+      const parsed = JSON.parse(raw) as CodeChunkRecord[];
+
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+    searchCodeChunkRecords(queryEmbedding: number[], topK = 5): RankedCodeChunkRecord[] {
+    return this.loadCodeChunkRecords()
+      .map((record) => ({
+        record,
+        similarity: this.cosineSimilarity(queryEmbedding, record.embedding),
+      }))
+      .sort((left, right) => right.similarity - left.similarity)
+      .slice(0, topK);
+  }
+
+
+  saveCodeChunkRecords(records: CodeChunkRecord[]): void {
+    fs.mkdirSync(this.storageDir, { recursive: true });
+    fs.writeFileSync(this.codeChunkFilePath, JSON.stringify(records, null, 2), 'utf8');
+  }
+
+  replaceCodeChunksForRepository(repositoryPath: string, records: CodeChunkRecord[]): void {
+    const existing = this.loadCodeChunkRecords().filter(
+      (record) => record.repositoryPath !== repositoryPath,
+    );
+
+    this.saveCodeChunkRecords([...existing, ...records]);
   }
 
   private cosineSimilarity(left: number[], right: number[]): number {

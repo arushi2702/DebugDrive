@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { AgentDecision, BugContext, RetrievalRecord } from '../types/agent';
+import { AgentDecision, BugContext, ModelTranscript, RetrievalRecord } from '../types/agent';
 import { DebugSession } from '../types/session';
 
 export interface ExperimentSummary {
@@ -12,6 +12,7 @@ export interface ExperimentSummary {
   finalDecision: AgentDecision;
   retrievedMemoryIds: string[];
   retrievedMemorySummaries: string[];
+  modelTranscripts: ModelTranscript[];
   reward: number;
   success: boolean;
   createdAt: number;
@@ -37,6 +38,7 @@ export class ExperimentStore {
       repositoryName,
       bugContext: session.bugContext,
       finalDecision: decision,
+      modelTranscripts: session.modelTranscripts,
       retrievedMemoryIds: retrievedMemories.map((record) => record.id),
       retrievedMemorySummaries: retrievedMemories.map((record) => record.summary),
       reward,
