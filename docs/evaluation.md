@@ -1,10 +1,10 @@
 # Evaluation
 
-Debug Drive includes a small deterministic benchmark suite for demo and regression testing.
+Debug Drive includes a deterministic benchmark suite for demos, regression checks, and research-style reporting.
 
-## Current Demo Benchmark Suite
+## Benchmark Suite
 
-The suite contains 6 TypeScript cases:
+The current suite contains 6 TypeScript cases:
 
 - Empty array handling
 - Missing default value
@@ -13,7 +13,30 @@ The suite contains 6 TypeScript cases:
 - Safe feature-flag default
 - Existing seeded compile validation case
 
-## Latest Benchmark Result
+Each benchmark case can include:
+
+- Difficulty: `easy`, `medium`, or `hard`
+- Category: `edge-case`, `defaults`, `parsing`, `state`, `validation`, or `other`
+- Expected final action
+- Validation command
+- Error output
+
+## Metrics
+
+Generated reports include:
+
+- Success rate
+- Validation pass rate
+- pass@k
+- fix@k
+- Average reward
+- Average rounds used
+- Retrieved memory/code context counts
+- Retrieval vs no-retrieval success rates
+- Difficulty breakdown
+- Category breakdown
+
+## Latest Demo Snapshot
 
 ```text
 Benchmark Cases: 6
@@ -21,35 +44,37 @@ Success Rate: 100.0%
 Validation Pass Rate: 100.0%
 pass@k: 100.0%
 fix@k: 100.0%
-Average Rounds Used: 1.17
+Average Rounds Used: ~1.3
 ```
 
-## Latest Ablation Comparison
+## Ablation Snapshot
 
 ```text
 Normal Success Rate: 100.0%
 No-RAG Success Rate: 100.0%
 ```
 
-## Summary Table
-
-| Evaluation | Cases | Success Rate | Validation Pass Rate | pass@k | fix@k |
-|---|---:|---:|---:|---:|---:|
-| Normal | 6 | 100.0% | 100.0% | 100.0% | 100.0% |
-| No-RAG Ablation | 6 | 100.0% | 100.0% | 100.0% | 100.0% |
+The deterministic mock provider can solve the controlled demo cases with or without RAG. Retrieval impact should be evaluated more meaningfully on harder real-model benchmarks.
 
 ## Report Artifacts
 
-Debug Drive writes generated benchmark reports under:
+Benchmark reports are generated under:
 
 ```text
 .debug-drive-memory/benchmark-summaries/
 ```
 
-Reports are generated in both JSON and Markdown formats.
+Session reports are generated under:
 
-## Interpretation
+```text
+.debug-drive/session-reports/
+```
 
-The current benchmark suite is intentionally deterministic so the demo is reliable. The deterministic mock provider can solve these controlled benchmark cases with or without RAG.
+Both JSON and Markdown benchmark summaries are produced for reproducibility.
 
-The next evaluation milestone is to add harder real-model benchmarks where retrieval impact can be measured more meaningfully.
+## Next Evaluation Milestones
+
+- Add 20-50 real-world style benchmark cases.
+- Add no-symbols and no-strategy ablations.
+- Compare mock and OpenAI-backed runs.
+- Add failure analysis for rejected or invalid patches.

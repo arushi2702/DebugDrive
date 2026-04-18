@@ -1,8 +1,8 @@
 # Debug Drive Demo
 
-Use the included demo bug to show the full Debug Drive workflow.
+This walkthrough shows the polished Phase 20 flow: open a buggy file, auto-debug it, review artifacts, apply the accepted patch, and verify the fix.
 
-## 1. Show The Live Bug
+## 1. Start From A Known Bug
 
 Open:
 
@@ -25,7 +25,8 @@ export function getItems(items: string[]): string[] {
 Run:
 
 ```powershell
-npm run demo:test
+npm run compile
+node ./out/demo/items.test.js
 ```
 
 Expected failure:
@@ -34,53 +35,28 @@ Expected failure:
 AssertionError: undefined !== []
 ```
 
-This proves the live repository still contains the bug before Debug Drive runs.
-
-## 2. Run Debug Drive
+## 2. Run Auto Debug
 
 Launch the extension in VS Code and run:
 
 ```text
-Debug Drive: Run Debug Session
+Debug Drive: Auto Debug Active File
 ```
 
-Use these inputs:
-
-```text
-Bug description:
-getItems returns undefined for an empty array but should return []
-
-Validation command:
-npm run demo:test
-
-Error output:
-AssertionError: undefined !== [] at getItems([])
-```
-
-## 3. Show The Accepted Sandbox Result
+For demo files, Debug Drive infers the bug statement, validation command, and error output automatically. For normal files, it uses VS Code diagnostics and `package.json` script inference when available.
 
 Expected session summary:
 
 ```text
---- Session Summary ---
 Status: ACCEPT
 Validation: passed
 Critic: approved
-Patch Materialized: true
-Patch Validated: true
 Patch Safety: sandbox-validated
 Live Apply: review-required
+Session Report: .debug-drive/session-reports/session-....md
 ```
 
-Expected final decision:
-
-```text
-Next Action: accept
-Critic Approved: true
-Test Passed: true
-```
-
-Accepted patch:
+Expected accepted patch:
 
 ```diff
 --- a/src/demo/items.ts
@@ -90,84 +66,72 @@ Accepted patch:
 +    return [];
 ```
 
-Debug Drive validates the patch in a sandbox copy and exports an accepted patch artifact. It does not directly mutate the live workspace by default.
+## 3. Review Artifacts
 
-## 4. Show Safety Behavior
-
-Run the live test again:
-
-```powershell
-npm run demo:test
-```
-
-It should still fail on the live file.
-
-This demonstrates the safety model:
+Use the post-accept buttons or Command Palette:
 
 ```text
-Debug Drive validates candidate fixes in sandbox artifacts first.
-Live workspace changes require review.
+Debug Drive: Open Latest Session Report
+Debug Drive: Open Latest Accepted Patch
 ```
 
-## 5. Show Benchmark Evaluation
+Reports and patches are written under:
+
+```text
+.debug-drive/
+```
+
+## 4. Apply The Accepted Patch
+
+Run:
+
+```text
+Debug Drive: Apply Accepted Patch
+```
+
+Debug Drive checks that the live file has not changed since validation, asks for confirmation, writes a rollback snapshot, and then applies the accepted patch.
+
+Expected output:
+
+```text
+--- Live Patch Applied ---
+Status: applied to live workspace
+Rollback Snapshot: .debug-drive/live-rollbacks/...
+```
+
+Verify:
+
+```powershell
+npm run compile
+node ./out/demo/items.test.js
+```
+
+Expected result:
+
+```text
+Demo item tests passed.
+```
+
+Restore the demo bug before recording another run:
+
+```powershell
+git restore src/demo/items.ts
+```
+
+## 5. Show Evaluation
 
 Run:
 
 ```text
 Debug Drive: Run Benchmarks
-```
-
-Choose:
-
-```text
-normal
-```
-
-Expected output:
-
-```text
-Benchmark Cases: 6
-Successful Runs: 6
-Success Rate: 100.0%
-Validation Pass Rate: 100.0%
-pass@k: 100.0%
-fix@k: 100.0%
-```
-
-Open the generated Markdown report from:
-
-```text
-.debug-drive-memory/benchmark-summaries/
-```
-
-## 6. Show Ablation Comparison
-
-Run:
-
-```text
 Debug Drive: Run Ablation Comparison
+Debug Drive: Open Latest Benchmark Report
 ```
 
-Expected output:
+The generated reports include success rate, validation pass rate, pass@k, fix@k, reward, retrieval metrics, and difficulty/category breakdowns.
+
+## One-Line Explanation
 
 ```text
-Benchmark Cases: 6
-
---- Mode: normal ---
-Success Rate: 100.0%
-
---- Mode: no-rag ---
-Success Rate: 100.0%
-```
-
-Open the generated ablation Markdown report from:
-
-```text
-.debug-drive-memory/benchmark-summaries/
-```
-
-## One-Line Demo Explanation
-
-```text
-Debug Drive is an agentic debugging assistant. It retrieves related context, proposes a patch, critiques it, validates it in a sandbox, exports an accepted patch artifact, and evaluates performance with benchmark and ablation reports without directly mutating the live workspace.
+Debug Drive is an agentic debugging assistant that retrieves context, proposes and critiques patches, validates them in a sandbox, applies accepted fixes with rollback, and generates evaluation reports.
 ```
