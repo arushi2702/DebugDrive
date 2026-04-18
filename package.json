@@ -9,7 +9,15 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:debug-drive.runDebugSession",
+    "onCommand:debug-drive.autoDebugActiveFile",
+    "onCommand:debug-drive.indexRepository",
+    "onCommand:debug-drive.applyAcceptedPatch",
+    "onCommand:debug-drive.seedBenchmarkCase",
+    "onCommand:debug-drive.runBenchmarks",
+    "onCommand:debug-drive.runAblationComparison"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -17,6 +25,10 @@
       {
         "command": "debug-drive.runDebugSession",
         "title": "Debug Drive: Run Debug Session"
+      },
+      {
+        "command": "debug-drive.autoDebugActiveFile",
+        "title": "Debug Drive: Auto Debug Active File"
       },
       {
         "command": "debug-drive.indexRepository",

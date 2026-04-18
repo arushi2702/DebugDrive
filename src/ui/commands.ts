@@ -9,14 +9,14 @@ import { RepositoryIndexer } from '../rag/repositoryIndexer';
 import { RetrievalStore } from '../rag/retriever';
 import { RewardCalculator } from '../rag/reward';
 import { SimpleVectorizer } from '../rag/vectorizer';
-import { BenchmarkRunResult, BugContext } from '../types/agent';
+import { AgentDecision, BenchmarkRunResult, BugContext, ParsedPatch } from '../types/agent';
+import { DebugSession } from '../types/session';
 import { BenchmarkStore } from '../evaluation/benchmarkStore';
 import { BenchmarkRunner } from '../evaluation/benchmarkRunner';
 import { MetricsCalculator } from '../evaluation/metrics';
 import { ModelProviderFactory, ModelProviderSelection } from '../llm/modelProviderFactory';
 import { StrategySelector } from '../rag/strategySelector';
 import { PatchApplier } from '../sandbox/patchApplier';
-import { ParsedPatch } from '../types/agent';
 
 const RETRIEVAL_TOP_K = 3;
 const SIMILARITY_THRESHOLD = 0.75;
@@ -30,6 +30,13 @@ interface AcceptedPatchReference {
   originalContent: string;
   parsedPatch: ParsedPatch;
   createdAt: number;
+}
+
+interface DebugSessionInput {
+  problemStatement?: string;
+  failingCommand?: string;
+  errorOutput?: string;
+  skipPrompts?: boolean;
 }
 
 let latestAcceptedPatch: AcceptedPatchReference | undefined;
@@ -120,10 +127,194 @@ function resolveValidationCommandForActiveFile(
   return demoValidationCommands.get(filePath) ?? command;
 }
 
+function findNearestDiagnostic(document: vscode.TextDocument): vscode.Diagnostic | undefined {
+  const diagnostics = vscode.languages.getDiagnostics(document.uri);
+
+  return diagnostics.sort((left, right) => {
+    if (left.severity !== right.severity) {
+      return left.severity - right.severity;
+    }
+
+    return left.range.start.line - right.range.start.line;
+  })[0];
+}
+
+function formatDiagnosticProblemStatement(
+  targetFilePath: string,
+  diagnostic: vscode.Diagnostic | undefined,
+): string | undefined {
+  if (!diagnostic) {
+    return undefined;
+  }
+
+  const lineNumber = diagnostic.range.start.line + 1;
+  const severityLabel = vscode.DiagnosticSeverity[diagnostic.severity]?.toLowerCase() ?? 'diagnostic';
+  const source = diagnostic.source ? `${diagnostic.source} ` : '';
+
+  return `Fix ${severityLabel} in ${targetFilePath} at line ${lineNumber}: ${source}${diagnostic.message}`;
+}
+
+function formatDiagnosticErrorOutput(diagnostic: vscode.Diagnostic | undefined): string | undefined {
+  if (!diagnostic) {
+    return undefined;
+  }
+
+  const lineNumber = diagnostic.range.start.line + 1;
+  const source = diagnostic.source ? `${diagnostic.source}: ` : '';
+  const code = diagnostic.code ? ` (${diagnostic.code})` : '';
+
+  return `${source}${diagnostic.message}${code} at line ${lineNumber}`;
+}
+
+function buildDiagnosticContextSnippet(
+  document: vscode.TextDocument,
+  diagnostic: vscode.Diagnostic | undefined,
+): string | undefined {
+  if (!diagnostic) {
+    return undefined;
+  }
+
+  const startLine = Math.max(diagnostic.range.start.line - 2, 0);
+  const endLine = Math.min(diagnostic.range.end.line + 2, document.lineCount - 1);
+  const lines: string[] = [];
+
+  for (let line = startLine; line <= endLine; line += 1) {
+    const marker = line === diagnostic.range.start.line ? '>' : ' ';
+    lines.push(`${marker} ${line + 1}: ${document.lineAt(line).text}`);
+  }
+
+  return lines.join('\n');
+}
+
+function inferPackageValidationCommand(repositoryPath: string): string | undefined {
+  const packageJsonPath = path.join(repositoryPath, 'package.json');
+
+  if (!fs.existsSync(packageJsonPath)) {
+    return undefined;
+  }
+
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as {
+      scripts?: Record<string, string>;
+    };
+    const scripts = packageJson.scripts ?? {};
+
+    for (const scriptName of ['test', 'compile', 'build']) {
+      if (scripts[scriptName]) {
+        return `npm run ${scriptName}`;
+      }
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+function inferDemoBugContext(targetFilePath: string): Pick<
+  DebugSessionInput,
+  'problemStatement' | 'failingCommand' | 'errorOutput'
+> | undefined {
+  const demoCases = new Map<string, DebugSessionInput>([
+    [
+      path.join('src', 'demo', 'items.ts'),
+      {
+        problemStatement: 'getItems returns undefined for an empty array but should return []',
+        failingCommand: 'npm run compile && node ./out/demo/items.test.js',
+        errorOutput: 'AssertionError: undefined !== [] at getItems([])',
+      },
+    ],
+    [
+      path.join('src', 'demo', 'defaults.ts'),
+      {
+        problemStatement: 'getTheme returns an empty string when no theme is provided but should default to light',
+        failingCommand: 'npm run compile && node ./out/demo/defaults.test.js',
+        errorOutput: "AssertionError: '' !== 'light' at getTheme(undefined)",
+      },
+    ],
+    [
+      path.join('src', 'demo', 'parser.ts'),
+      {
+        problemStatement: 'parseTags keeps whitespace and empty tags instead of returning trimmed non-empty tags',
+        failingCommand: 'npm run compile && node ./out/demo/parser.test.js',
+        errorOutput: 'AssertionError: tags should be trimmed and empty entries removed',
+      },
+    ],
+    [
+      path.join('src', 'demo', 'pagination.ts'),
+      {
+        problemStatement: 'getPageStart treats page numbers as zero-based but page numbers are one-based',
+        failingCommand: 'npm run compile && node ./out/demo/pagination.test.js',
+        errorOutput: 'AssertionError: first page should start at 0',
+      },
+    ],
+    [
+      path.join('src', 'demo', 'flags.ts'),
+      {
+        problemStatement: 'isBetaEnabled defaults beta features to true when missing but should default to false',
+        failingCommand: 'npm run compile && node ./out/demo/flags.test.js',
+        errorOutput: 'AssertionError: missing beta flag should be false',
+      },
+    ],
+  ]);
+
+  return demoCases.get(targetFilePath);
+}
+
+function saveSessionReport(
+  repositoryPath: string,
+  repositoryName: string,
+  session: DebugSession,
+  decision: AgentDecision,
+  reward: number,
+  experimentSummaryPath: string,
+): string {
+  const reportsDir = path.join(repositoryPath, '.debug-drive', 'session-reports');
+  const reportPath = path.join(reportsDir, `${session.id}.md`);
+  const workspace = session.patchWorkspace;
+  const lines = [
+    `# Debug Drive Session Report`,
+    '',
+    `- Session ID: ${session.id}`,
+    `- Repository: ${repositoryName}`,
+    `- Target File: ${session.bugContext.filePath ?? '(unknown)'}`,
+    `- Status: ${decision.nextAction.toUpperCase()}`,
+    `- Strategy: ${session.strategySelection?.strategy ?? '(none)'}`,
+    `- Validation: ${decision.testResult?.passed ? 'passed' : 'failed or not run'}`,
+    `- Critic: ${decision.critique?.approved ? 'approved' : 'not approved'}`,
+    `- Reward: ${reward.toFixed(3)}`,
+    `- Accepted Patch: ${workspace?.acceptedPatchPath ?? '(none)'}`,
+    `- Rollback Ready: ${workspace?.rollbackAvailable ?? false}`,
+    `- Experiment Summary: ${experimentSummaryPath}`,
+    '',
+    '## Bug Context',
+    '',
+    `Problem: ${session.bugContext.problemStatement}`,
+    '',
+    `Validation Command: ${session.bugContext.failingCommand ?? '(not provided)'}`,
+    '',
+    `Error Output: ${session.bugContext.errorOutput ?? '(not provided)'}`,
+    '',
+    '## Patch Summary',
+    '',
+    session.latestPatch?.summary ?? 'No patch was proposed.',
+    '',
+    '```diff',
+    session.latestPatch?.diffText ?? 'No diff generated.',
+    '```',
+  ];
+
+  fs.mkdirSync(reportsDir, { recursive: true });
+  fs.writeFileSync(reportPath, lines.join('\n'), 'utf8');
+
+  return reportPath;
+}
+
 async function runDebugSessionWithCoordinator(
   coordinator: DebugCoordinator,
   outputChannel: vscode.OutputChannel,
   providerSelection?: ModelProviderSelection,
+  input?: DebugSessionInput,
 ): Promise<void> {
   const activeEditor = vscode.window.activeTextEditor;
 
@@ -134,28 +325,37 @@ async function runDebugSessionWithCoordinator(
     return;
   }
 
-  const problemStatement = await vscode.window.showInputBox({
-    prompt: 'Describe the bug or failing behavior',
-    placeHolder: 'Example: Unit test fails because parseUser returns null for valid input',
-    ignoreFocusOut: true,
-  });
+  const problemStatement = input?.skipPrompts
+    ? input.problemStatement
+    : await vscode.window.showInputBox({
+        prompt: 'Describe the bug or failing behavior',
+        placeHolder: 'Example: Unit test fails because parseUser returns null for valid input',
+        value: input?.problemStatement,
+        ignoreFocusOut: true,
+      });
 
   if (!problemStatement) {
     vscode.window.showWarningMessage('Debug Drive needs a bug description to start.');
     return;
   }
 
-  const failingCommand = await vscode.window.showInputBox({
-    prompt: 'Enter the test or execution command to validate fixes',
-    placeHolder: 'Example: npm test -- userParser.spec.ts',
-    ignoreFocusOut: true,
-  });
+  const failingCommand = input?.skipPrompts
+    ? input.failingCommand
+    : await vscode.window.showInputBox({
+        prompt: 'Enter the test or execution command to validate fixes',
+        placeHolder: 'Example: npm test -- userParser.spec.ts',
+        value: input?.failingCommand,
+        ignoreFocusOut: true,
+      });
 
-  const errorOutput = await vscode.window.showInputBox({
-    prompt: 'Paste failing test output or runtime error details',
-    placeHolder: 'Example: Expected [], received undefined at parseItems (line 42)',
-    ignoreFocusOut: true,
-  });
+  const errorOutput = input?.skipPrompts
+    ? input.errorOutput
+    : await vscode.window.showInputBox({
+        prompt: 'Paste failing test output or runtime error details',
+        placeHolder: 'Example: Expected [], received undefined at parseItems (line 42)',
+        value: input?.errorOutput,
+        ignoreFocusOut: true,
+      });
 
   const absoluteFilePath = activeEditor.document.uri.fsPath;
   const blockedInternalPaths = [
@@ -344,6 +544,14 @@ const rankedCodeSymbolRecords = retrievalStore
     reward,
     repositoryName,
   );
+  const sessionReportPath = saveSessionReport(
+    repositoryPath,
+    repositoryName,
+    session,
+    decision,
+    reward,
+    experimentSummaryPath,
+  );
 
   outputChannel.clear();
   outputChannel.show(true);
@@ -393,6 +601,7 @@ const rankedCodeSymbolRecords = retrievalStore
   outputChannel.appendLine(`Success Rate: ${(successRate * 100).toFixed(1)}%`);
   outputChannel.appendLine(`Average Reward: ${averageReward.toFixed(3)}`);
   outputChannel.appendLine(`Experiment Summary: ${experimentSummaryPath}`);
+  outputChannel.appendLine(`Session Report: ${sessionReportPath}`);
   outputChannel.appendLine('');
 
   outputChannel.appendLine('--- Reward Explanation ---');
@@ -542,6 +751,60 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
 
     await runDebugSessionWithCoordinator(coordinator, outputChannel, providerSelection);
   });
+
+  const autoDebugActiveFileCommand = vscode.commands.registerCommand(
+    'debug-drive.autoDebugActiveFile',
+    async () => {
+      const activeEditor = vscode.window.activeTextEditor;
+
+      if (!activeEditor) {
+        vscode.window.showWarningMessage('Open a source file before running Auto Debug Active File.');
+        return;
+      }
+
+      const absoluteFilePath = activeEditor.document.uri.fsPath;
+      const repositoryPath = findNearestProjectRoot(absoluteFilePath);
+      const targetFilePath = path.relative(repositoryPath, absoluteFilePath);
+      const diagnostic = findNearestDiagnostic(activeEditor.document);
+      const demoBugContext = inferDemoBugContext(targetFilePath);
+      const diagnosticProblemStatement = formatDiagnosticProblemStatement(targetFilePath, diagnostic);
+      const diagnosticErrorOutput = formatDiagnosticErrorOutput(diagnostic);
+      const diagnosticContextSnippet = buildDiagnosticContextSnippet(activeEditor.document, diagnostic);
+      const inferredValidationCommand =
+        demoBugContext?.failingCommand ?? inferPackageValidationCommand(repositoryPath);
+
+      if (!inferredValidationCommand) {
+        vscode.window.showWarningMessage(
+          'Debug Drive could not infer a validation command. Use Run Debug Session and enter one manually.',
+        );
+        return;
+      }
+
+      const providerSelection = new ModelProviderFactory().create();
+      const coordinator = new DebugCoordinator(undefined, providerSelection.provider);
+      const problemStatement =
+        demoBugContext?.problemStatement ??
+        diagnosticProblemStatement ??
+        `Debug failing behavior in ${targetFilePath}`;
+      const errorOutput = [
+        demoBugContext?.errorOutput ?? diagnosticErrorOutput,
+        diagnosticContextSnippet ? `Diagnostic Context:\n${diagnosticContextSnippet}` : undefined,
+      ]
+        .filter(Boolean)
+        .join('\n\n') || undefined;
+
+      vscode.window.showInformationMessage(
+        `Debug Drive auto-debugging ${targetFilePath} with ${inferredValidationCommand}`,
+      );
+
+      await runDebugSessionWithCoordinator(coordinator, outputChannel, providerSelection, {
+        problemStatement,
+        failingCommand: inferredValidationCommand,
+        errorOutput,
+        skipPrompts: true,
+      });
+    },
+  );
 
   const runMalformedModelSessionCommand = vscode.commands.registerCommand(
     'debug-drive.runMalformedModelDebugSession',
@@ -929,6 +1192,7 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
 
   context.subscriptions.push(
     runSessionCommand,
+    autoDebugActiveFileCommand,
     runMalformedModelSessionCommand,
     applyAcceptedPatchCommand,
     indexRepositoryCommand,
