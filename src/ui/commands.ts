@@ -261,6 +261,50 @@ function inferDemoBugContext(targetFilePath: string): Pick<
   return demoCases.get(targetFilePath);
 }
 
+function inferBenchmarkDifficulty(targetFilePath: string): 'easy' | 'medium' | 'hard' {
+  if (
+    targetFilePath.endsWith(path.join('src', 'demo', 'items.ts')) ||
+    targetFilePath.endsWith(path.join('src', 'demo', 'defaults.ts'))
+  ) {
+    return 'easy';
+  }
+
+  if (
+    targetFilePath.endsWith(path.join('src', 'demo', 'parser.ts')) ||
+    targetFilePath.endsWith(path.join('src', 'demo', 'flags.ts'))
+  ) {
+    return 'medium';
+  }
+
+  return 'hard';
+}
+
+function inferBenchmarkCategory(
+  targetFilePath: string,
+): 'edge-case' | 'parsing' | 'defaults' | 'state' | 'validation' | 'other' {
+  if (targetFilePath.endsWith(path.join('src', 'demo', 'items.ts'))) {
+    return 'edge-case';
+  }
+
+  if (targetFilePath.endsWith(path.join('src', 'demo', 'defaults.ts'))) {
+    return 'defaults';
+  }
+
+  if (targetFilePath.endsWith(path.join('src', 'demo', 'parser.ts'))) {
+    return 'parsing';
+  }
+
+  if (targetFilePath.endsWith(path.join('src', 'demo', 'pagination.ts'))) {
+    return 'validation';
+  }
+
+  if (targetFilePath.endsWith(path.join('src', 'demo', 'flags.ts'))) {
+    return 'state';
+  }
+
+  return 'other';
+}
+
 function saveSessionReport(
   repositoryPath: string,
   repositoryName: string,
@@ -989,6 +1033,8 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
         failingCommand,
         errorOutput: errorOutput || undefined,
         expectedFinalAction: 'accept',
+        difficulty: inferBenchmarkDifficulty(relativeFilePath),
+        category: inferBenchmarkCategory(relativeFilePath),
         tags: [activeEditor.document.languageId, 'seeded'],
       });
 
@@ -1090,6 +1136,20 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
     outputChannel.appendLine(`Average Retrieved Memories: ${metrics.averageRetrievedMemoryCount.toFixed(2)}`);
     outputChannel.appendLine(`Average Retrieved Code Chunks: ${metrics.averageRetrievedCodeChunkCount.toFixed(2)}`);
     outputChannel.appendLine('');
+    outputChannel.appendLine('--- Difficulty Breakdown ---');
+    for (const groupedMetric of metrics.byDifficulty) {
+      outputChannel.appendLine(
+        `${groupedMetric.group}: ${(groupedMetric.successRate * 100).toFixed(1)}% success, ${groupedMetric.averageRoundsUsed.toFixed(2)} avg rounds`,
+      );
+    }
+    outputChannel.appendLine('');
+    outputChannel.appendLine('--- Category Breakdown ---');
+    for (const groupedMetric of metrics.byCategory) {
+      outputChannel.appendLine(
+        `${groupedMetric.group}: ${(groupedMetric.successRate * 100).toFixed(1)}% success, ${groupedMetric.averageRoundsUsed.toFixed(2)} avg rounds`,
+      );
+    }
+    outputChannel.appendLine('');
 
     outputChannel.appendLine('--- Report Artifacts ---');
     outputChannel.appendLine(`Benchmark Summary JSON: ${benchmarkSummaryPath}`);
@@ -1165,6 +1225,12 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
                 outputChannel.appendLine(`Retrieval Used Runs: ${metrics.retrievalUsedRuns}`);
         outputChannel.appendLine(`Retrieval Success Rate: ${(metrics.retrievalSuccessRate * 100).toFixed(1)}%`);
         outputChannel.appendLine(`No-Retrieval Success Rate: ${(metrics.noRetrievalSuccessRate * 100).toFixed(1)}%`);
+        outputChannel.appendLine(
+          `Difficulty Groups: ${metrics.byDifficulty.map((groupedMetric) => `${groupedMetric.group} ${(groupedMetric.successRate * 100).toFixed(1)}%`).join(', ')}`,
+        );
+        outputChannel.appendLine(
+          `Category Groups: ${metrics.byCategory.map((groupedMetric) => `${groupedMetric.group} ${(groupedMetric.successRate * 100).toFixed(1)}%`).join(', ')}`,
+        );
         outputChannel.appendLine('');
       }
 

@@ -177,6 +177,8 @@ export interface BenchmarkCase {
   failingCommand: string;
   errorOutput?: string;
   expectedFinalAction: 'accept' | 'reject';
+  difficulty?: 'easy' | 'medium' | 'hard';
+  category?: 'edge-case' | 'parsing' | 'defaults' | 'state' | 'validation' | 'other';
   tags: string[];
 }
 
@@ -184,6 +186,8 @@ export interface BenchmarkRunResult {
   id: string;
   benchmarkCaseId: string;
   mode: 'normal' | 'no-rag' | 'no-critic';
+  difficulty?: BenchmarkCase['difficulty'];
+  category?: BenchmarkCase['category'];
   finalAction: 'revise' | 'test' | 'accept' | 'reject';
   testPassed: boolean;
   criticApproved: boolean;

@@ -98,6 +98,8 @@ export class BenchmarkStore {
       [
         result.benchmarkCaseId,
         result.mode,
+        result.difficulty ?? 'uncategorized',
+        result.category ?? 'uncategorized',
         result.finalAction,
         result.success ? 'yes' : 'no',
         result.testPassed ? 'yes' : 'no',
@@ -106,6 +108,28 @@ export class BenchmarkStore {
         result.reward.toFixed(3),
         result.retrievedMemoryCount.toString(),
         result.retrievedCodeChunkCount.toString(),
+      ].join(' | '),
+    );
+    const difficultyRows = metrics.byDifficulty.map((groupedMetric) =>
+      [
+        groupedMetric.group,
+        groupedMetric.totalRuns.toString(),
+        groupedMetric.successfulRuns.toString(),
+        percentage(groupedMetric.successRate),
+        percentage(groupedMetric.validationPassRate),
+        groupedMetric.averageReward.toFixed(3),
+        groupedMetric.averageRoundsUsed.toFixed(2),
+      ].join(' | '),
+    );
+    const categoryRows = metrics.byCategory.map((groupedMetric) =>
+      [
+        groupedMetric.group,
+        groupedMetric.totalRuns.toString(),
+        groupedMetric.successfulRuns.toString(),
+        percentage(groupedMetric.successRate),
+        percentage(groupedMetric.validationPassRate),
+        groupedMetric.averageReward.toFixed(3),
+        groupedMetric.averageRoundsUsed.toFixed(2),
       ].join(' | '),
     );
 
@@ -135,10 +159,22 @@ export class BenchmarkStore {
       `- Retrieval Success Rate: ${percentage(metrics.retrievalSuccessRate)}`,
       `- No-Retrieval Success Rate: ${percentage(metrics.noRetrievalSuccessRate)}`,
       '',
+      '## Difficulty Breakdown',
+      '',
+      'Difficulty | Runs | Successful | Success Rate | Validation Pass Rate | Avg Reward | Avg Rounds',
+      '--- | --- | --- | --- | --- | --- | ---',
+      ...(difficultyRows.length > 0 ? difficultyRows : ['No difficulty metadata recorded.']),
+      '',
+      '## Category Breakdown',
+      '',
+      'Category | Runs | Successful | Success Rate | Validation Pass Rate | Avg Reward | Avg Rounds',
+      '--- | --- | --- | --- | --- | --- | ---',
+      ...(categoryRows.length > 0 ? categoryRows : ['No category metadata recorded.']),
+      '',
       '## Run Results',
       '',
-      'Benchmark Case | Mode | Final Action | Success | Test Passed | Critic Approved | Rounds | Reward | Memories | Code Chunks',
-      '--- | --- | --- | --- | --- | --- | --- | --- | --- | ---',
+      'Benchmark Case | Mode | Difficulty | Category | Final Action | Success | Test Passed | Critic Approved | Rounds | Reward | Memories | Code Chunks',
+      '--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---',
       ...resultRows,
       '',
     ].join('\n');

@@ -88,6 +88,8 @@ export class BenchmarkRunner {
       id: `benchmark-result-${benchmarkCase.id}-${Date.now()}`,
       benchmarkCaseId: benchmarkCase.id,
       mode,
+      difficulty: benchmarkCase.difficulty ?? 'medium',
+      category: benchmarkCase.category ?? this.inferCategory(benchmarkCase),
       strategy: session.strategySelection?.strategy,
       strategyExploration: session.strategySelection?.exploration,
       finalAction: decision.nextAction,
@@ -101,6 +103,33 @@ export class BenchmarkRunner {
       success: decision.nextAction === benchmarkCase.expectedFinalAction,
       createdAt: Date.now(),
     };
+  }
+
+  private inferCategory(benchmarkCase: BenchmarkCase): BenchmarkCase['category'] {
+    const text = [
+      benchmarkCase.problemStatement,
+      benchmarkCase.name,
+      benchmarkCase.targetFilePath,
+      benchmarkCase.tags.join(' '),
+    ].join(' ').toLowerCase();
+
+    if (text.includes('parse') || text.includes('tag')) {
+      return 'parsing';
+    }
+
+    if (text.includes('default') || text.includes('empty string') || text.includes('missing')) {
+      return 'defaults';
+    }
+
+    if (text.includes('empty') || text.includes('edge')) {
+      return 'edge-case';
+    }
+
+    if (text.includes('page') || text.includes('offset')) {
+      return 'validation';
+    }
+
+    return 'other';
   }
 
   private resolveValidationCommand(benchmarkCase: BenchmarkCase): string {
