@@ -85,6 +85,25 @@ function findCommandRepositoryRootOrWarn(
   return repositoryPath;
 }
 
+function resolveValidationCommandForActiveFile(
+  filePath: string,
+  command: string | undefined,
+): string | undefined {
+  if (command?.trim() !== 'npm run demo:test') {
+    return command || undefined;
+  }
+
+  const demoValidationCommands = new Map<string, string>([
+    [path.join('src', 'demo', 'items.ts'), 'npm run compile && node ./out/demo/items.test.js'],
+    [path.join('src', 'demo', 'defaults.ts'), 'npm run compile && node ./out/demo/defaults.test.js'],
+    [path.join('src', 'demo', 'parser.ts'), 'npm run compile && node ./out/demo/parser.test.js'],
+    [path.join('src', 'demo', 'pagination.ts'), 'npm run compile && node ./out/demo/pagination.test.js'],
+    [path.join('src', 'demo', 'flags.ts'), 'npm run compile && node ./out/demo/flags.test.js'],
+  ]);
+
+  return demoValidationCommands.get(filePath) ?? command;
+}
+
 async function runDebugSessionWithCoordinator(
   coordinator: DebugCoordinator,
   outputChannel: vscode.OutputChannel,
@@ -155,6 +174,12 @@ async function runDebugSessionWithCoordinator(
   const rankedCodeChunkRecords = retrievalStore
     .searchCodeChunkRecords(queryEmbedding, RETRIEVAL_TOP_K)
     .filter((rankedRecord) => rankedRecord.similarity >= SIMILARITY_THRESHOLD);
+    const relativeFilePath = path.relative(repositoryPath, absoluteFilePath);
+
+const rankedCodeSymbolRecords = retrievalStore
+  .searchCodeSymbolRecords(queryEmbedding, RETRIEVAL_TOP_K, relativeFilePath)
+  .filter((rankedRecord) => rankedRecord.similarity >= SIMILARITY_THRESHOLD);
+
 
   const allRetrievalRecords = retrievalStore.loadRecords();
   const rankedSourceIds = new Set(
@@ -168,27 +193,18 @@ async function runDebugSessionWithCoordinator(
 
     return rankedSourceIds.has(record.id) && !isInternalMemory;
   });
-  const relativeFilePath = path.relative(repositoryPath, absoluteFilePath);
+  const targetFilePath = relativeFilePath || absoluteFilePath;
+  const validationCommand = resolveValidationCommandForActiveFile(targetFilePath, failingCommand || undefined);
 
   const bugContext: BugContext = {
     repositoryPath,
-    filePath: relativeFilePath || absoluteFilePath,
+    filePath: targetFilePath,
     language: activeEditor.document.languageId,
     problemStatement,
-    failingCommand: failingCommand || undefined,
+    failingCommand: validationCommand,
     errorOutput: errorOutput || undefined,
     relevantCode,
   };
-
-  if (
-  failingCommand?.trim() === 'npm run demo:test' &&
-  bugContext.filePath !== path.join('src', 'demo', 'items.ts')
-) {
-  vscode.window.showWarningMessage(
-    'The demo validation command targets src/demo/items.ts. Open src/demo/items.ts before running the demo session.',
-  );
-  return;
-}
 
   const session = coordinator.createSession(bugContext);
   const decision = await coordinator.runSession(
@@ -325,6 +341,7 @@ async function runDebugSessionWithCoordinator(
   outputChannel.appendLine(`Retrieval Top K: ${RETRIEVAL_TOP_K}`);
   outputChannel.appendLine(`Similarity Threshold: ${SIMILARITY_THRESHOLD}`);
   outputChannel.appendLine(`Retrieved Code Chunks Available: ${rankedCodeChunkRecords.length}`);
+  outputChannel.appendLine(`Retrieved Symbols Available: ${rankedCodeSymbolRecords.length}`);
   outputChannel.appendLine(`Current Reward: ${reward}`);
   outputChannel.appendLine(`Learning Runs: ${totalLearningRuns}`);
   outputChannel.appendLine(`Accepted Runs: ${acceptedLearningRuns}`);
@@ -383,6 +400,22 @@ async function runDebugSessionWithCoordinator(
   }
 
   outputChannel.appendLine('');
+
+  outputChannel.appendLine('');
+outputChannel.appendLine('--- Retrieved Symbol Context ---');
+
+if (rankedCodeSymbolRecords.length === 0) {
+  outputChannel.appendLine('No semantically relevant symbols found for this run.');
+} else {
+  for (const rankedSymbol of rankedCodeSymbolRecords) {
+    outputChannel.appendLine(
+      `- ${rankedSymbol.record.symbolKind} ${rankedSymbol.record.symbolName} (${rankedSymbol.record.filePath}:${rankedSymbol.record.startLine}-${rankedSymbol.record.endLine})`,
+    );
+    outputChannel.appendLine(`  Similarity: ${rankedSymbol.similarity.toFixed(4)}`);
+    outputChannel.appendLine(`  Signature: ${rankedSymbol.record.signature}`);
+  }
+}
+
   outputChannel.appendLine('--- Agent Messages ---');
 
   for (const message of session.messages) {
@@ -504,11 +537,15 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
     outputChannel.appendLine(`Embedding Provider: ${vectorizer.name}`);
     outputChannel.appendLine('');
 
-    const records = await indexer.indexRepository(repositoryPath, repositoryName);
-    retrievalStore.replaceCodeChunksForRepository(repositoryPath, records);
+    const indexResult = await indexer.indexRepository(repositoryPath, repositoryName);
+    retrievalStore.replaceCodeChunksForRepository(repositoryPath, indexResult.chunks);
+    retrievalStore.replaceCodeSymbolsForRepository(repositoryPath, indexResult.symbols);
 
-    outputChannel.appendLine(`Indexed Code Chunks: ${records.length}`);
-    vscode.window.showInformationMessage(`Debug Drive indexed ${records.length} code chunks.`);
+    outputChannel.appendLine(`Indexed Code Chunks: ${indexResult.chunks.length}`);
+    outputChannel.appendLine(`Indexed Code Symbols: ${indexResult.symbols.length}`);
+    vscode.window.showInformationMessage(
+      `Debug Drive indexed ${indexResult.chunks.length} code chunks and ${indexResult.symbols.length} symbols.`,
+    );
   });
 
     const applyAcceptedPatchCommand = vscode.commands.registerCommand(

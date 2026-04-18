@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { CodeChunkRecord, EmbeddingRecord, RetrievalRecord } from '../types/agent';
+import { CodeChunkRecord, CodeSymbolRecord, EmbeddingRecord, RetrievalRecord } from '../types/agent';
 
 export interface RankedEmbeddingRecord {
   record: EmbeddingRecord;
@@ -8,6 +8,11 @@ export interface RankedEmbeddingRecord {
 }
 export interface RankedCodeChunkRecord {
   record: CodeChunkRecord;
+  similarity: number;
+}
+
+export interface RankedCodeSymbolRecord {
+  record: CodeSymbolRecord;
   similarity: number;
 }
 
@@ -22,6 +27,10 @@ export class RetrievalStore {
       }))
       .sort((left, right) => right.similarity - left.similarity)
       .slice(0, topK);
+  }
+
+  private get codeSymbolRecordsPath(): string {
+    return path.join(this.storageDir, 'code-symbol-records.json');
   }
 
     private get codeChunkFilePath(): string {
@@ -42,6 +51,53 @@ export class RetrievalStore {
       return [];
     }
   }
+
+    loadCodeSymbolRecords(): CodeSymbolRecord[] {
+    if (!fs.existsSync(this.codeSymbolRecordsPath)) {
+      return [];
+    }
+
+    try {
+      const raw = fs.readFileSync(this.codeSymbolRecordsPath, 'utf8');
+      const parsed = JSON.parse(raw) as CodeSymbolRecord[];
+
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  saveCodeSymbolRecords(records: CodeSymbolRecord[]): void {
+    fs.mkdirSync(this.storageDir, { recursive: true });
+    fs.writeFileSync(this.codeSymbolRecordsPath, JSON.stringify(records, null, 2), 'utf8');
+  }
+
+  replaceCodeSymbolsForRepository(repositoryPath: string, records: CodeSymbolRecord[]): void {
+    const existing = this.loadCodeSymbolRecords().filter(
+      (record) => record.repositoryPath !== repositoryPath,
+    );
+
+    this.saveCodeSymbolRecords([...existing, ...records]);
+  }
+
+  searchCodeSymbolRecords(
+  queryEmbedding: number[],
+  topK = 5,
+  preferredFilePath?: string,
+): RankedCodeSymbolRecord[] {
+  return this.loadCodeSymbolRecords()
+    .map((record) => {
+      const baseSimilarity = this.cosineSimilarity(queryEmbedding, record.embedding);
+      const preferredFileBoost = preferredFilePath && record.filePath === preferredFilePath ? 0.1 : 0;
+
+      return {
+        record,
+        similarity: Math.min(baseSimilarity + preferredFileBoost, 1),
+      };
+    })
+    .sort((left, right) => right.similarity - left.similarity)
+    .slice(0, topK);
+}
 
     searchCodeChunkRecords(queryEmbedding: number[], topK = 5): RankedCodeChunkRecord[] {
     return this.loadCodeChunkRecords()

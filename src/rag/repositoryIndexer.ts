@@ -1,8 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { CodeChunkRecord } from '../types/agent';
+import { CodeChunkRecord, CodeSymbolRecord } from '../types/agent';
 import { CodeChunker } from './codeChunker';
 import { EmbeddingProvider } from './embeddingProvider';
+import { SymbolExtractor } from './symbolExtractor';
+
+export interface RepositoryIndexResult {
+  chunks: CodeChunkRecord[];
+  symbols: CodeSymbolRecord[];
+}
 
 const SUPPORTED_EXTENSIONS = new Set([
   '.ts',
@@ -27,6 +33,7 @@ const IGNORED_DIRECTORIES = new Set([
   '.git',
   '.debug-drive',
   '.debug-drive-memory',
+  '.debug-drive-sandboxes',
 ]);
 
 const IGNORED_FILES = new Set([
@@ -41,25 +48,36 @@ export class RepositoryIndexer {
   constructor(
     private readonly embeddingProvider: EmbeddingProvider,
     private readonly chunker = new CodeChunker(),
+    private readonly symbolExtractor = new SymbolExtractor(embeddingProvider),
   ) {}
 
-  async indexRepository(repositoryPath: string, repositoryName: string): Promise<CodeChunkRecord[]> {
+  async indexRepository(repositoryPath: string, repositoryName: string): Promise<RepositoryIndexResult> {
     const files = this.discoverSourceFiles(repositoryPath);
-    const records: CodeChunkRecord[] = [];
+    const chunks: CodeChunkRecord[] = [];
+    const symbols: CodeSymbolRecord[] = [];
 
     for (const filePath of files) {
       const relativeFilePath = path.relative(repositoryPath, filePath);
       const content = fs.readFileSync(filePath, 'utf8');
-      const chunks = this.chunker.chunk(content);
+      const fileChunks = this.chunker.chunk(content);
 
-      for (const chunk of chunks) {
+      symbols.push(
+        ...(await this.symbolExtractor.extract({
+          repositoryPath,
+          repositoryName,
+          filePath: relativeFilePath,
+          content,
+        })),
+      );
+
+      for (const chunk of fileChunks) {
         const embeddingText = [
           `Repository: ${repositoryName}`,
           `File: ${relativeFilePath}`,
-          content,
+          chunk.content,
         ].join('\n');
 
-        records.push({
+        chunks.push({
           id: `${repositoryName}:${relativeFilePath}:chunk-${chunk.chunkIndex}`,
           repositoryPath,
           repositoryName,
@@ -76,7 +94,10 @@ export class RepositoryIndexer {
       }
     }
 
-    return records;
+    return {
+      chunks,
+      symbols,
+    };
   }
 
   private discoverSourceFiles(repositoryPath: string): string[] {
@@ -103,7 +124,6 @@ export class RepositoryIndexer {
         ) {
           discoveredFiles.push(entryPath);
         }
-
       }
     };
 

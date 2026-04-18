@@ -113,6 +113,20 @@ export interface CodeChunkRecord {
   createdAt: number;
 }
 
+export interface CodeSymbolRecord {
+  id: string;
+  repositoryPath: string;
+  repositoryName: string;
+  filePath: string;
+  symbolName: string;
+  symbolKind: 'function' | 'class' | 'interface' | 'method' | 'unknown';
+  startLine: number;
+  endLine: number;
+  signature: string;
+  content: string;
+  embedding: number[];
+  createdAt: number;
+}
 export interface ModelTranscript {
   id: string;
   sessionId: string;
