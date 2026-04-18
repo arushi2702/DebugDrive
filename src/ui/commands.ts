@@ -15,9 +15,24 @@ import { BenchmarkRunner } from '../evaluation/benchmarkRunner';
 import { MetricsCalculator } from '../evaluation/metrics';
 import { ModelProviderFactory, ModelProviderSelection } from '../llm/modelProviderFactory';
 import { StrategySelector } from '../rag/strategySelector';
+import { PatchApplier } from '../sandbox/patchApplier';
+import { ParsedPatch } from '../types/agent';
 
 const RETRIEVAL_TOP_K = 3;
 const SIMILARITY_THRESHOLD = 0.75;
+
+interface AcceptedPatchReference {
+  repositoryPath: string;
+  targetFilePath: string;
+  absoluteTargetPath: string;
+  acceptedPatchPath: string;
+  candidateDiff: string;
+  originalContent: string;
+  parsedPatch: ParsedPatch;
+  createdAt: number;
+}
+
+let latestAcceptedPatch: AcceptedPatchReference | undefined;
 
 function findNearestProjectRoot(filePath: string): string {
   let currentDir = path.dirname(filePath);
@@ -218,6 +233,25 @@ const rankedCodeSymbolRecords = retrievalStore
     retrievalRecords,
     rankedCodeChunkRecords.map((rankedRecord) => rankedRecord.record),
   );
+
+  const patchWorkspace = session.patchWorkspace;
+  if (
+    decision.nextAction === 'accept' &&
+    patchWorkspace?.validated &&
+    patchWorkspace.acceptedPatchPath &&
+    patchWorkspace.parsedPatch
+  ) {
+    latestAcceptedPatch = {
+      repositoryPath,
+      targetFilePath,
+      absoluteTargetPath: absoluteFilePath,
+      acceptedPatchPath: patchWorkspace.acceptedPatchPath,
+      candidateDiff: patchWorkspace.candidateDiff ?? '',
+      originalContent: fullCode,
+      parsedPatch: patchWorkspace.parsedPatch,
+      createdAt: Date.now(),
+    };
+  }
 
   let retrievalRecordSaved = false;
   if (decision.nextAction === 'accept' && session.latestPatch) {
@@ -479,7 +513,7 @@ if (rankedCodeSymbolRecords.length === 0) {
   outputChannel.appendLine(`Sandbox Root: ${session.patchWorkspace?.sandboxRootPath ?? '(none)'}`);
   outputChannel.appendLine(`Sandbox Project Root: ${session.patchWorkspace?.sandboxProjectRootPath ?? '(none)'}`);
   outputChannel.appendLine(
-    'Prototype Status: Candidate patches are written into sandbox working-copy files and artifact snapshots, but are not yet applied back to the live repository.',
+    'Prototype Status: Candidate patches are sandbox-validated first. Use "Debug Drive: Apply Accepted Patch" to apply the latest accepted patch to the live workspace after review.',
   );
   outputChannel.appendLine('Candidate Diff Snapshot:');
   outputChannel.appendLine(session.patchWorkspace?.candidateDiff ?? 'No candidate diff recorded.');
@@ -559,11 +593,79 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
     );
   });
 
-    const applyAcceptedPatchCommand = vscode.commands.registerCommand(
+  const applyAcceptedPatchCommand = vscode.commands.registerCommand(
     'debug-drive.applyAcceptedPatch',
     async () => {
-      vscode.window.showWarningMessage(
-        'Live patch application is not enabled yet. Review the exported .accepted.patch artifact before applying changes to the workspace.',
+      if (!latestAcceptedPatch) {
+        vscode.window.showWarningMessage(
+          'No accepted Debug Drive patch is ready yet. Run a debug session that reaches ACCEPT first.',
+        );
+        return;
+      }
+
+      if (!fs.existsSync(latestAcceptedPatch.absoluteTargetPath)) {
+        vscode.window.showErrorMessage(
+          `Debug Drive cannot find the target file: ${latestAcceptedPatch.absoluteTargetPath}`,
+        );
+        return;
+      }
+
+      const currentContent = fs.readFileSync(latestAcceptedPatch.absoluteTargetPath, 'utf8');
+      if (currentContent !== latestAcceptedPatch.originalContent) {
+        vscode.window.showWarningMessage(
+          'Debug Drive did not apply the patch because the live file changed after validation. Re-run the debug session to validate against the latest file.',
+        );
+        return;
+      }
+
+      const confirmation = await vscode.window.showWarningMessage(
+        `Apply the latest sandbox-validated patch to ${latestAcceptedPatch.targetFilePath}? A rollback snapshot will be saved first.`,
+        { modal: true },
+        'Apply Patch',
+      );
+
+      if (confirmation !== 'Apply Patch') {
+        vscode.window.showInformationMessage('Debug Drive live patch application cancelled.');
+        return;
+      }
+
+      const parsedFilePatch = latestAcceptedPatch.parsedPatch.files.find(
+        (filePatch) => filePatch.newFilePath === latestAcceptedPatch?.targetFilePath,
+      );
+
+      if (!parsedFilePatch) {
+        vscode.window.showErrorMessage('Debug Drive could not find the target file inside the accepted patch.');
+        return;
+      }
+
+      const applyResult = new PatchApplier().applyToContent(currentContent, parsedFilePatch);
+
+      if (!applyResult.ok || applyResult.updatedContent === undefined) {
+        vscode.window.showErrorMessage(`Debug Drive could not apply the accepted patch: ${applyResult.error}`);
+        return;
+      }
+
+      const rollbackDir = path.join(latestAcceptedPatch.repositoryPath, '.debug-drive', 'live-rollbacks');
+      const sanitizedTargetPath = latestAcceptedPatch.targetFilePath.replace(/[\\\/]/g, '__');
+      const rollbackPath = path.join(
+        rollbackDir,
+        `${Date.now()}__${sanitizedTargetPath}.rollback.txt`,
+      );
+
+      fs.mkdirSync(rollbackDir, { recursive: true });
+      fs.writeFileSync(rollbackPath, currentContent, 'utf8');
+      fs.writeFileSync(latestAcceptedPatch.absoluteTargetPath, applyResult.updatedContent, 'utf8');
+
+      outputChannel.show(true);
+      outputChannel.appendLine('');
+      outputChannel.appendLine('--- Live Patch Applied ---');
+      outputChannel.appendLine(`Target File: ${latestAcceptedPatch.absoluteTargetPath}`);
+      outputChannel.appendLine(`Accepted Patch: ${latestAcceptedPatch.acceptedPatchPath}`);
+      outputChannel.appendLine(`Rollback Snapshot: ${rollbackPath}`);
+      outputChannel.appendLine('Status: applied to live workspace');
+
+      vscode.window.showInformationMessage(
+        `Debug Drive applied the accepted patch. Rollback snapshot: ${rollbackPath}`,
       );
     },
   );
