@@ -179,6 +179,8 @@ export class BenchmarkStore {
       [
         result.benchmarkCaseId,
         result.mode,
+        result.providerName ?? 'unknown',
+        result.modelName ?? 'unknown',
         result.difficulty ?? 'uncategorized',
         result.category ?? 'uncategorized',
         result.finalAction,
@@ -277,8 +279,8 @@ export class BenchmarkStore {
       '',
       '## Run Results',
       '',
-      'Benchmark Case | Mode | Difficulty | Category | Final Action | Success | Test Passed | Critic Approved | Rounds | Reward | Memories | Code Chunks',
-      '--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---',
+      'Benchmark Case | Mode | Provider | Model | Difficulty | Category | Final Action | Success | Test Passed | Critic Approved | Rounds | Reward | Memories | Code Chunks',
+      '--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---',
       ...resultRows,
       '',
     ].join('\n');

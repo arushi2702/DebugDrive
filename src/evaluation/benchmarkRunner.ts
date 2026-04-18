@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { DebugCoordinator } from '../core/coordinator';
+import { ModelProvider } from '../llm/modelProvider';
+import { MockModelProvider } from '../llm/mockModelProvider';
 import { LearningStore } from '../rag/learningStore';
 import { RewardCalculator } from '../rag/reward';
 import { RetrievalStore } from '../rag/retriever';
@@ -13,6 +15,9 @@ export interface BenchmarkRunnerOptions {
   mode?: BenchmarkRunResult['mode'];
   topK?: number;
   similarityThreshold?: number;
+  modelProvider?: ModelProvider;
+  providerMode?: string;
+  providerFallback?: string;
 }
 
 export class BenchmarkRunner {
@@ -24,6 +29,7 @@ export class BenchmarkRunner {
 
   async runCase(benchmarkCase: BenchmarkCase, options: BenchmarkRunnerOptions): Promise<BenchmarkRunResult> {
     const mode = options.mode ?? 'normal';
+    const modelProvider = options.modelProvider ?? new MockModelProvider();
     const topK = options.topK ?? 3;
     const similarityThreshold = options.similarityThreshold ?? 0.75;
     const repositoryName = path.basename(options.repositoryPath);
@@ -74,7 +80,7 @@ export class BenchmarkRunner {
     const strategySelection = this.strategySelector.select(bugContext, learningStore.loadRecords());
     bugContext.strategyHint = `${strategySelection.strategy}: ${strategySelection.reason}`;
 
-    const coordinator = new DebugCoordinator();
+    const coordinator = new DebugCoordinator(undefined, modelProvider);
     const session = coordinator.createSession(bugContext);
     session.strategySelection = strategySelection;
     const decision = await coordinator.runSession(
@@ -88,6 +94,9 @@ export class BenchmarkRunner {
       id: `benchmark-result-${benchmarkCase.id}-${Date.now()}`,
       benchmarkCaseId: benchmarkCase.id,
       mode,
+      providerName: options.providerMode ?? modelProvider.providerName,
+      modelName: modelProvider.modelName,
+      providerFallback: options.providerFallback,
       difficulty: benchmarkCase.difficulty ?? 'medium',
       category: benchmarkCase.category ?? this.inferCategory(benchmarkCase),
       strategy: session.strategySelection?.strategy,

@@ -212,6 +212,9 @@ export interface BenchmarkRunResult {
   id: string;
   benchmarkCaseId: string;
   mode: 'normal' | 'no-rag' | 'no-critic';
+  providerName?: string;
+  modelName?: string;
+  providerFallback?: string;
   difficulty?: BenchmarkCase['difficulty'];
   category?: BenchmarkCase['category'];
   finalAction: 'revise' | 'test' | 'accept' | 'reject';

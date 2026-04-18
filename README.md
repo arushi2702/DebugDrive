@@ -81,7 +81,12 @@ Current benchmark harness:
 
 Reports include difficulty/category breakdowns and are exported as Markdown and JSON.
 
-More detail: [docs/evaluation.md](docs/evaluation.md)
+More detail:
+
+- [Evaluation methodology](docs/evaluation.md)
+- [Real-model evaluation guide](docs/real-model-evaluation.md)
+- [External repository smoke test](docs/external-smoke-test.md)
+- [Presentation package](docs/presentation.md)
 
 ## Setup
 
@@ -107,9 +112,3 @@ Debug Drive: Seed Benchmark Case
 Debug Drive: Run Benchmarks
 Debug Drive: Run Ablation Comparison
 ```
-
-## Project Status
-
-Completed through **Phase 25: Realistic Evaluation + Final Hardening**.
-
-Debug Drive is demo-ready as a flagship AI developer-tooling project. The remaining future work is external validation on larger real repositories and deeper real-model reliability testing.

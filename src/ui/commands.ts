@@ -1163,6 +1163,7 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
 
     const repositoryName = path.basename(repositoryPath);
     const benchmarkStore = new BenchmarkStore(path.join(repositoryPath, '.debug-drive-memory'));
+    const providerSelection = new ModelProviderFactory().create();
     const benchmarkRunner = new BenchmarkRunner();
     const metricsCalculator = new MetricsCalculator();
     const cases = benchmarkStore.loadCases();
@@ -1179,6 +1180,9 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
     outputChannel.appendLine(`Repository Namespace: ${repositoryName}`);
     outputChannel.appendLine(`Benchmark Cases: ${cases.length}`);
     outputChannel.appendLine(`Mode: ${selectedMode.label}`);
+    outputChannel.appendLine(`Model Provider: ${providerSelection.providerMode}`);
+    outputChannel.appendLine(`Model Name: ${providerSelection.modelName}`);
+    outputChannel.appendLine(`Provider Fallback: ${providerSelection.fallbackReason ?? '(none)'}`);
     outputChannel.appendLine('');
 
     const runResults: BenchmarkRunResult[] = [];
@@ -1190,6 +1194,9 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
         mode: selectedMode.label as 'normal' | 'no-rag' | 'no-critic',
         topK: RETRIEVAL_TOP_K,
         similarityThreshold: SIMILARITY_THRESHOLD,
+        modelProvider: providerSelection.provider,
+        providerMode: providerSelection.providerMode,
+        providerFallback: providerSelection.fallbackReason,
       });
 
       benchmarkStore.appendResult(result);
@@ -1267,6 +1274,7 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
 
       const repositoryName = path.basename(repositoryPath);
       const benchmarkStore = new BenchmarkStore(path.join(repositoryPath, '.debug-drive-memory'));
+      const providerSelection = new ModelProviderFactory().create();
       const benchmarkRunner = new BenchmarkRunner();
       const metricsCalculator = new MetricsCalculator();
       const cases = benchmarkStore.loadCases();
@@ -1283,6 +1291,9 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
       outputChannel.appendLine(`Repository: ${repositoryPath}`);
       outputChannel.appendLine(`Repository Namespace: ${repositoryName}`);
       outputChannel.appendLine(`Benchmark Cases: ${cases.length}`);
+      outputChannel.appendLine(`Model Provider: ${providerSelection.providerMode}`);
+      outputChannel.appendLine(`Model Name: ${providerSelection.modelName}`);
+      outputChannel.appendLine(`Provider Fallback: ${providerSelection.fallbackReason ?? '(none)'}`);
       outputChannel.appendLine('');
 
       const allAblationResults: BenchmarkRunResult[] = [];
@@ -1298,6 +1309,9 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
             mode,
             topK: RETRIEVAL_TOP_K,
             similarityThreshold: SIMILARITY_THRESHOLD,
+            modelProvider: providerSelection.provider,
+            providerMode: providerSelection.providerMode,
+            providerFallback: providerSelection.fallbackReason,
           });
 
           benchmarkStore.appendResult(result);
