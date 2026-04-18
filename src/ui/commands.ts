@@ -40,6 +40,8 @@ interface DebugSessionInput {
 }
 
 let latestAcceptedPatch: AcceptedPatchReference | undefined;
+let latestSessionReportPath: string | undefined;
+let latestBenchmarkReportPath: string | undefined;
 
 function findNearestProjectRoot(filePath: string): string {
   let currentDir = path.dirname(filePath);
@@ -303,6 +305,15 @@ function inferBenchmarkCategory(
   }
 
   return 'other';
+}
+
+async function openPathIfExists(filePath: string | undefined, missingMessage: string): Promise<void> {
+  if (!filePath || !fs.existsSync(filePath)) {
+    vscode.window.showWarningMessage(missingMessage);
+    return;
+  }
+
+  await vscode.window.showTextDocument(vscode.Uri.file(filePath), { preview: false });
 }
 
 function saveSessionReport(
@@ -596,6 +607,7 @@ const rankedCodeSymbolRecords = retrievalStore
     reward,
     experimentSummaryPath,
   );
+  latestSessionReportPath = sessionReportPath;
 
   outputChannel.clear();
   outputChannel.show(true);
@@ -781,9 +793,29 @@ if (rankedCodeSymbolRecords.length === 0) {
   outputChannel.appendLine(`Critic Approved: ${decision.critique?.approved ?? false}`);
   outputChannel.appendLine(`Test Passed: ${decision.testResult?.passed ?? false}`);
 
-  vscode.window.showInformationMessage(
-    `Debug Drive completed round ${session.currentRound}. See the "Debug Drive" output panel for details.`,
-  );
+  if (decision.nextAction === 'accept') {
+    const action = await vscode.window.showInformationMessage(
+      'Debug Drive accepted a sandbox-validated patch.',
+      'Apply Patch',
+      'Open Report',
+      'Open Patch',
+    );
+
+    if (action === 'Apply Patch') {
+      await vscode.commands.executeCommand('debug-drive.applyAcceptedPatch');
+    } else if (action === 'Open Report') {
+      await openPathIfExists(latestSessionReportPath, 'No Debug Drive session report is available yet.');
+    } else if (action === 'Open Patch') {
+      await openPathIfExists(
+        latestAcceptedPatch?.acceptedPatchPath,
+        'No Debug Drive accepted patch is available yet.',
+      );
+    }
+  } else {
+    vscode.window.showInformationMessage(
+      `Debug Drive completed round ${session.currentRound}. See the "Debug Drive" output panel for details.`,
+    );
+  }
 }
 
 export function registerDebugDriveCommands(context: vscode.ExtensionContext): void {
@@ -861,6 +893,36 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
         modelName: 'malformed-mock-debug-drive-model',
         fallbackReason: 'Malformed mock provider command selected for parser fallback testing.',
       });
+    },
+  );
+
+  const openLatestSessionReportCommand = vscode.commands.registerCommand(
+    'debug-drive.openLatestSessionReport',
+    async () => {
+      await openPathIfExists(
+        latestSessionReportPath,
+        'No Debug Drive session report is available yet. Run a debug session first.',
+      );
+    },
+  );
+
+  const openLatestAcceptedPatchCommand = vscode.commands.registerCommand(
+    'debug-drive.openLatestAcceptedPatch',
+    async () => {
+      await openPathIfExists(
+        latestAcceptedPatch?.acceptedPatchPath,
+        'No Debug Drive accepted patch is available yet. Run a session that reaches ACCEPT first.',
+      );
+    },
+  );
+
+  const openLatestBenchmarkReportCommand = vscode.commands.registerCommand(
+    'debug-drive.openLatestBenchmarkReport',
+    async () => {
+      await openPathIfExists(
+        latestBenchmarkReportPath,
+        'No Debug Drive benchmark report is available yet. Run benchmarks or ablations first.',
+      );
     },
   );
 
@@ -1154,6 +1216,7 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
     outputChannel.appendLine('--- Report Artifacts ---');
     outputChannel.appendLine(`Benchmark Summary JSON: ${benchmarkSummaryPath}`);
     outputChannel.appendLine(`Benchmark Report MD: ${benchmarkReportPath}`);
+    latestBenchmarkReportPath = benchmarkReportPath;
 
     outputChannel.appendLine(`Retrieval Used Runs: ${metrics.retrievalUsedRuns}`);
     outputChannel.appendLine(`Retrieval Success Rate: ${(metrics.retrievalSuccessRate * 100).toFixed(1)}%`);
@@ -1251,6 +1314,7 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
       outputChannel.appendLine('--- Report Artifacts ---');
       outputChannel.appendLine(`Ablation Summary JSON: ${ablationSummaryPath}`);
       outputChannel.appendLine(`Ablation Report MD: ${ablationReportPath}`);
+      latestBenchmarkReportPath = ablationReportPath;
 
       vscode.window.showInformationMessage('Debug Drive ablation comparison complete.');
     },
@@ -1260,6 +1324,9 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
     runSessionCommand,
     autoDebugActiveFileCommand,
     runMalformedModelSessionCommand,
+    openLatestSessionReportCommand,
+    openLatestAcceptedPatchCommand,
+    openLatestBenchmarkReportCommand,
     applyAcceptedPatchCommand,
     indexRepositoryCommand,
     seedBenchmarkCaseCommand,

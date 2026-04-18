@@ -14,6 +14,9 @@
     "onCommand:debug-drive.autoDebugActiveFile",
     "onCommand:debug-drive.indexRepository",
     "onCommand:debug-drive.applyAcceptedPatch",
+    "onCommand:debug-drive.openLatestSessionReport",
+    "onCommand:debug-drive.openLatestAcceptedPatch",
+    "onCommand:debug-drive.openLatestBenchmarkReport",
     "onCommand:debug-drive.seedBenchmarkCase",
     "onCommand:debug-drive.runBenchmarks",
     "onCommand:debug-drive.runAblationComparison"
@@ -37,6 +40,18 @@
       {
         "command": "debug-drive.applyAcceptedPatch",
         "title": "Debug Drive: Apply Accepted Patch"
+      },
+      {
+        "command": "debug-drive.openLatestSessionReport",
+        "title": "Debug Drive: Open Latest Session Report"
+      },
+      {
+        "command": "debug-drive.openLatestAcceptedPatch",
+        "title": "Debug Drive: Open Latest Accepted Patch"
+      },
+      {
+        "command": "debug-drive.openLatestBenchmarkReport",
+        "title": "Debug Drive: Open Latest Benchmark Report"
       },
       {
         "command": "debug-drive.seedBenchmarkCase",

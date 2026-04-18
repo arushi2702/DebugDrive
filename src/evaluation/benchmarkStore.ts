@@ -56,7 +56,7 @@ export class BenchmarkStore {
       const raw = fs.readFileSync(this.benchmarkCasesPath, 'utf8');
       const parsed = JSON.parse(raw) as BenchmarkCase[];
 
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? parsed.map((benchmarkCase) => this.withMetadata(benchmarkCase)) : [];
     } catch {
       return [];
     }
@@ -88,6 +88,54 @@ export class BenchmarkStore {
 
     fs.mkdirSync(this.storageDir, { recursive: true });
     fs.writeFileSync(this.benchmarkResultsPath, JSON.stringify(existing, null, 2), 'utf8');
+  }
+
+  private withMetadata(benchmarkCase: BenchmarkCase): BenchmarkCase {
+    return {
+      ...benchmarkCase,
+      difficulty: benchmarkCase.difficulty ?? this.inferDifficulty(benchmarkCase),
+      category: benchmarkCase.category ?? this.inferCategory(benchmarkCase),
+    };
+  }
+
+  private inferDifficulty(benchmarkCase: BenchmarkCase): BenchmarkCase['difficulty'] {
+    const text = `${benchmarkCase.problemStatement} ${benchmarkCase.targetFilePath}`.toLowerCase();
+
+    if (text.includes('pagination') || text.includes('page')) {
+      return 'hard';
+    }
+
+    if (text.includes('parse') || text.includes('flag')) {
+      return 'medium';
+    }
+
+    return 'easy';
+  }
+
+  private inferCategory(benchmarkCase: BenchmarkCase): BenchmarkCase['category'] {
+    const text = `${benchmarkCase.problemStatement} ${benchmarkCase.targetFilePath} ${benchmarkCase.tags.join(' ')}`.toLowerCase();
+
+    if (text.includes('parse') || text.includes('tag')) {
+      return 'parsing';
+    }
+
+    if (text.includes('theme') || text.includes('default') || text.includes('missing')) {
+      return 'defaults';
+    }
+
+    if (text.includes('page') || text.includes('pagination')) {
+      return 'validation';
+    }
+
+    if (text.includes('flag') || text.includes('beta')) {
+      return 'state';
+    }
+
+    if (text.includes('empty') || text.includes('array')) {
+      return 'edge-case';
+    }
+
+    return 'other';
   }
 
   private formatEvaluationReport(summary: BenchmarkEvaluationSummary): string {
