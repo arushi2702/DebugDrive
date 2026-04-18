@@ -1,8 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { DebugCoordinator } from '../core/coordinator';
+import { LearningStore } from '../rag/learningStore';
 import { RewardCalculator } from '../rag/reward';
 import { RetrievalStore } from '../rag/retriever';
+import { StrategySelector } from '../rag/strategySelector';
 import { SimpleVectorizer } from '../rag/vectorizer';
 import { BenchmarkCase, BenchmarkRunResult, BugContext } from '../types/agent';
 
@@ -17,6 +19,7 @@ export class BenchmarkRunner {
   constructor(
     private readonly rewardCalculator = new RewardCalculator(),
     private readonly vectorizer = new SimpleVectorizer(),
+    private readonly strategySelector = new StrategySelector(),
   ) {}
 
   async runCase(benchmarkCase: BenchmarkCase, options: BenchmarkRunnerOptions): Promise<BenchmarkRunResult> {
@@ -24,7 +27,9 @@ export class BenchmarkRunner {
     const topK = options.topK ?? 3;
     const similarityThreshold = options.similarityThreshold ?? 0.75;
     const repositoryName = path.basename(options.repositoryPath);
-    const retrievalStore = new RetrievalStore(path.join(options.repositoryPath, '.debug-drive-memory'));
+    const memoryPath = path.join(options.repositoryPath, '.debug-drive-memory');
+    const retrievalStore = new RetrievalStore(memoryPath);
+    const learningStore = new LearningStore(memoryPath);
     const targetFileAbsolutePath = path.join(options.repositoryPath, benchmarkCase.targetFilePath);
     const relevantCode = fs.existsSync(targetFileAbsolutePath)
       ? fs.readFileSync(targetFileAbsolutePath, 'utf8')
@@ -66,9 +71,12 @@ export class BenchmarkRunner {
       errorOutput: benchmarkCase.errorOutput,
       relevantCode,
     };
+    const strategySelection = this.strategySelector.select(bugContext, learningStore.loadRecords());
+    bugContext.strategyHint = `${strategySelection.strategy}: ${strategySelection.reason}`;
 
     const coordinator = new DebugCoordinator();
     const session = coordinator.createSession(bugContext);
+    session.strategySelection = strategySelection;
     const decision = await coordinator.runSession(
       session,
       retrievalRecords,
@@ -80,6 +88,8 @@ export class BenchmarkRunner {
       id: `benchmark-result-${benchmarkCase.id}-${Date.now()}`,
       benchmarkCaseId: benchmarkCase.id,
       mode,
+      strategy: session.strategySelection?.strategy,
+      strategyExploration: session.strategySelection?.exploration,
       finalAction: decision.nextAction,
       testPassed: decision.testResult?.passed ?? false,
       criticApproved: decision.critique?.approved ?? false,

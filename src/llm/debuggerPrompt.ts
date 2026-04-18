@@ -34,6 +34,7 @@ export class DebuggerPromptBuilder {
           `Problem: ${input.bugContext.problemStatement}`,
           `Failing Command: ${input.bugContext.failingCommand ?? '(not provided)'}`,
           `Error Output: ${input.bugContext.errorOutput ?? '(not provided)'}`,
+          input.bugContext.strategyHint ? `Selected Strategy: ${input.bugContext.strategyHint}` : undefined,
           '',
           'Relevant Code:',
           input.bugContext.relevantCode ?? '(not provided)',
@@ -71,7 +72,7 @@ export class DebuggerPromptBuilder {
                 )
                 .join('\n\n')
             : '(none)',
-        ].join('\n'),
+        ].filter((item): item is string => item !== undefined).join('\n'),
       },
     ];
   }

@@ -14,6 +14,7 @@ import { BenchmarkStore } from '../evaluation/benchmarkStore';
 import { BenchmarkRunner } from '../evaluation/benchmarkRunner';
 import { MetricsCalculator } from '../evaluation/metrics';
 import { ModelProviderFactory, ModelProviderSelection } from '../llm/modelProviderFactory';
+import { StrategySelector } from '../rag/strategySelector';
 
 const RETRIEVAL_TOP_K = 3;
 const SIMILARITY_THRESHOLD = 0.75;
@@ -162,6 +163,7 @@ async function runDebugSessionWithCoordinator(
   const learningStore = new LearningStore(memoryPath);
   const experimentStore = new ExperimentStore(memoryPath);
   const rewardCalculator = new RewardCalculator();
+  const strategySelector = new StrategySelector();
 
   const selectedCode = activeEditor.document.getText(activeEditor.selection);
   const fullCode = activeEditor.document.getText();
@@ -206,7 +208,11 @@ const rankedCodeSymbolRecords = retrievalStore
     relevantCode,
   };
 
+  const previousLearningRecords = learningStore.loadRecords();
+  const strategySelection = strategySelector.select(bugContext, previousLearningRecords);
+  bugContext.strategyHint = `${strategySelection.strategy}: ${strategySelection.reason}`;
   const session = coordinator.createSession(bugContext);
+  session.strategySelection = strategySelection;
   const decision = await coordinator.runSession(
     session,
     retrievalRecords,
@@ -264,7 +270,6 @@ const rankedCodeSymbolRecords = retrievalStore
 
   const rewardResult = rewardCalculator.calculate(session, decision);
   const reward = rewardResult.reward;
-  const previousLearningRecords = learningStore.loadRecords();
   const totalLearningRuns = previousLearningRecords.length + 1;
   const acceptedLearningRuns =
     previousLearningRecords.filter((record) => record.finalAction === 'accept').length +
@@ -291,6 +296,9 @@ const rankedCodeSymbolRecords = retrievalStore
     maxRounds: session.maxRounds,
     reward,
     rewardExplanation: rewardResult.explanation,
+    strategy: strategySelection.strategy,
+    strategyReason: strategySelection.reason,
+    strategyExploration: strategySelection.exploration,
     retrievedMemoryIds: retrievalRecords.map((record) => record.id),
     createdAt: Date.now(),
   });
@@ -316,6 +324,9 @@ const rankedCodeSymbolRecords = retrievalStore
   outputChannel.appendLine('');
   outputChannel.appendLine('--- Session Summary ---');
   outputChannel.appendLine(`Status: ${decision.nextAction.toUpperCase()}`);
+  outputChannel.appendLine(`Strategy: ${strategySelection.strategy}`);
+  outputChannel.appendLine(`Strategy Exploration: ${strategySelection.exploration}`);
+  outputChannel.appendLine(`Strategy Reason: ${strategySelection.reason}`);
   outputChannel.appendLine(`Validation: ${decision.testResult?.passed ? 'passed' : 'failed or not run'}`);
   outputChannel.appendLine(`Critic: ${decision.critique?.approved ? 'approved' : 'not approved'}`);
   outputChannel.appendLine(`Patch Materialized: ${session.patchWorkspace?.materialized ?? false}`);

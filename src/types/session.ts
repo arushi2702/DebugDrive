@@ -1,4 +1,4 @@
-import { AgentDecision, AgentMessage, BugContext, ModelTranscript, ParsedPatch, PatchProposal, TestResult } from './agent';
+import { AgentDecision, AgentMessage, BugContext, ModelTranscript, ParsedPatch, PatchProposal, StrategySelection, TestResult } from './agent';
 
 export interface PatchWorkspaceState {
   targetFilePath?: string;
@@ -25,6 +25,7 @@ export interface DebugSession {
   maxRounds: number;
   latestPatch?: PatchProposal;
   modelTranscripts: ModelTranscript[];
+  strategySelection?: StrategySelection;
   latestTestResult?: TestResult;
   finalDecision?: AgentDecision;
   patchWorkspace?: PatchWorkspaceState;

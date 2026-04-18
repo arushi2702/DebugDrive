@@ -9,6 +9,7 @@ export interface BugContext {
   failingTest?: string;
   errorOutput?: string;
   relevantCode?: string;
+  strategyHint?: string;
 }
 
 export interface PatchProposal {
@@ -95,6 +96,9 @@ export interface LearningRecord {
   maxRounds: number;
   reward: number;
   rewardExplanation: string[];
+  strategy?: DebugStrategy;
+  strategyReason?: string;
+  strategyExploration?: boolean;
   retrievedMemoryIds: string[];
   createdAt: number;
 }
@@ -188,6 +192,22 @@ export interface BenchmarkRunResult {
   reward: number;
   retrievedMemoryCount: number;
   retrievedCodeChunkCount: number;
+  strategy?: DebugStrategy;
+  strategyExploration?: boolean;
   success: boolean;
   createdAt: number;
 }
+
+export type DebugStrategy =
+  | 'baseline'
+  | 'rag-heavy'
+  | 'minimal-patch'
+  | 'test-focused'
+  | 'symbol-aware';
+
+export interface StrategySelection {
+  strategy: DebugStrategy;
+  reason: string;
+  exploration: boolean;
+}
+
