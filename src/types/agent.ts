@@ -99,8 +99,20 @@ export interface LearningRecord {
   strategy?: DebugStrategy;
   strategyReason?: string;
   strategyExploration?: boolean;
+  bugCategory?: BenchmarkCase['category'];
+  difficulty?: BenchmarkCase['difficulty'];
+  patchStyle?: DebugStrategy;
+  retrievalUsed?: boolean;
+  validationOutcome?: 'passed' | 'failed' | 'not-run';
   retrievedMemoryIds: string[];
   createdAt: number;
+}
+
+export interface PatchRiskAssessment {
+  level: 'low' | 'medium' | 'high';
+  reasons: string[];
+  changedFiles: number;
+  changedLines: number;
 }
 export interface CodeChunkRecord {
   id: string;
@@ -112,6 +124,8 @@ export interface CodeChunkRecord {
   content: string;
   startLine: number;
   endLine: number;
+  imports?: string[];
+  relatedTestPath?: string;
   embedding: number[];
   embeddingProvider: string;
   createdAt: number;
@@ -128,6 +142,8 @@ export interface CodeSymbolRecord {
   endLine: number;
   signature: string;
   content: string;
+  imports?: string[];
+  relatedTestPath?: string;
   embedding: number[];
   createdAt: number;
 }
@@ -178,7 +194,17 @@ export interface BenchmarkCase {
   errorOutput?: string;
   expectedFinalAction: 'accept' | 'reject';
   difficulty?: 'easy' | 'medium' | 'hard';
-  category?: 'edge-case' | 'parsing' | 'defaults' | 'state' | 'validation' | 'other';
+  category?:
+    | 'edge-case'
+    | 'parsing'
+    | 'defaults'
+    | 'state'
+    | 'validation'
+    | 'null-handling'
+    | 'logic'
+    | 'off-by-one'
+    | 'api-misuse'
+    | 'other';
   tags: string[];
 }
 
@@ -207,7 +233,12 @@ export type DebugStrategy =
   | 'rag-heavy'
   | 'minimal-patch'
   | 'test-focused'
-  | 'symbol-aware';
+  | 'symbol-aware'
+  | 'minimal-local-fix'
+  | 'retrieval-augmented-fix'
+  | 'test-guided-fix'
+  | 'conservative-no-refactor'
+  | 'broader-refactor';
 
 export interface StrategySelection {
   strategy: DebugStrategy;

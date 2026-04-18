@@ -4,7 +4,7 @@ Debug Drive includes a deterministic benchmark suite for demos, regression check
 
 ## Benchmark Suite
 
-The current suite contains 6 TypeScript cases:
+The demo suite contains 6 TypeScript cases:
 
 - Empty array handling
 - Missing default value
@@ -21,6 +21,8 @@ Each benchmark case can include:
 - Validation command
 - Error output
 
+Phase 21 adds a tracked built-in mixed suite under `src/demo/realistic` with realistic bug categories such as null handling, API misuse, off-by-one logic, authorization state, config defaults, and expected hard failures.
+
 ## Metrics
 
 Generated reports include:
@@ -35,16 +37,16 @@ Generated reports include:
 - Retrieval vs no-retrieval success rates
 - Difficulty breakdown
 - Category breakdown
+- Failure analysis
+- Patch risk summaries in session reports
 
 ## Latest Demo Snapshot
 
 ```text
-Benchmark Cases: 6
-Success Rate: 100.0%
-Validation Pass Rate: 100.0%
-pass@k: 100.0%
-fix@k: 100.0%
-Average Rounds Used: ~1.3
+Demo Benchmark Cases: 6
+Built-in Mixed Cases: 15+
+Metrics: measured per run
+Failure Analysis: included in generated reports
 ```
 
 ## Ablation Snapshot
@@ -54,7 +56,7 @@ Normal Success Rate: 100.0%
 No-RAG Success Rate: 100.0%
 ```
 
-The deterministic mock provider can solve the controlled demo cases with or without RAG. Retrieval impact should be evaluated more meaningfully on harder real-model benchmarks.
+The deterministic mock provider can solve the controlled demo cases with or without RAG. The built-in mixed suite intentionally includes harder cases and expected failures so evaluation reports are less synthetic.
 
 ## Report Artifacts
 

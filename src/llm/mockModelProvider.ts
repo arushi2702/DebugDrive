@@ -176,6 +176,83 @@ function buildFlagsDemoPatch(targetFile: string, previousCritique: string | unde
   );
 }
 
+function buildNullUserPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix null user email fallback',
+    'Null or missing user emails should return the configured unknown email fallback.',
+    "  return profile!.email ?? '';",
+    "  return profile?.email ?? 'unknown@example.com';",
+    previousCritique,
+  );
+}
+
+function buildCartPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix cart total quantity calculation',
+    'Cart totals must multiply each item price by its quantity.',
+    '  return items.reduce((sum, item) => sum + item.price, 0);',
+    '  return items.reduce((sum, item) => sum + item.price * item.quantity, 0);',
+    previousCritique,
+  );
+}
+
+function buildPermissionsPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix suspended editor permission',
+    'Suspended users should not be allowed to edit even if their role normally can.',
+    "  return user.role === 'admin' || user.role === 'editor';",
+    "  return !user.suspended && (user.role === 'admin' || user.role === 'editor');",
+    previousCritique,
+  );
+}
+
+function buildDatesPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix inclusive expiry comparison',
+    'A timestamp should be expired once it is equal to or before the current time.',
+    '  return expiresAtMs < nowMs;',
+    '  return expiresAtMs <= nowMs;',
+    previousCritique,
+  );
+}
+
+function buildApiResponsePatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix failed API response unwrap',
+    'Failed API responses should throw their error instead of returning undefined data.',
+    '  return response.data as T;',
+    "  if (!response.ok) { throw new Error(response.error ?? 'Request failed'); } return response.data as T;",
+    previousCritique,
+  );
+}
+
+function buildDedupePatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix duplicate ID filtering',
+    'ID lists should preserve first-seen order while removing duplicates.',
+    '  return ids;',
+    '  return Array.from(new Set(ids));',
+    previousCritique,
+  );
+}
+
+function buildRetryPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix retryable HTTP status handling',
+    'Only transient rate-limit and server errors should be retried.',
+    '  return statusCode >= 400;',
+    '  return statusCode === 429 || statusCode >= 500;',
+    previousCritique,
+  );
+}
+
 export class MockModelProvider implements ModelProvider {
   readonly providerName = 'mock-provider';
   readonly modelName = 'mock-debug-drive-model';
@@ -216,6 +293,34 @@ export class MockModelProvider implements ModelProvider {
 
     if (targetFile.endsWith('src\\demo\\flags.ts') || targetFile.endsWith('src/demo/flags.ts')) {
       return buildFlagsDemoPatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\realistic\\nullUser.ts') || targetFile.endsWith('src/demo/realistic/nullUser.ts')) {
+      return buildNullUserPatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\realistic\\cart.ts') || targetFile.endsWith('src/demo/realistic/cart.ts')) {
+      return buildCartPatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\realistic\\permissions.ts') || targetFile.endsWith('src/demo/realistic/permissions.ts')) {
+      return buildPermissionsPatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\realistic\\dates.ts') || targetFile.endsWith('src/demo/realistic/dates.ts')) {
+      return buildDatesPatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\realistic\\apiResponse.ts') || targetFile.endsWith('src/demo/realistic/apiResponse.ts')) {
+      return buildApiResponsePatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\realistic\\dedupe.ts') || targetFile.endsWith('src/demo/realistic/dedupe.ts')) {
+      return buildDedupePatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\realistic\\retry.ts') || targetFile.endsWith('src/demo/realistic/retry.ts')) {
+      return buildRetryPatch(targetFile, previousCritique);
     }
 
     return {

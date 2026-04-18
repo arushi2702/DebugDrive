@@ -120,6 +120,7 @@ export class DebugCoordinator {
       session.patchWorkspace.parsedPatch = safetyResult.safe
         ? safetyResult.parsedPatch
         : undefined;
+      session.patchWorkspace.patchRisk = safetyResult.risk;
     }
 
     this.addMessage(session, {

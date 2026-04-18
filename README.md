@@ -9,9 +9,9 @@ It combines multi-agent debugging, repository retrieval, safe patch execution, b
 - **Agent loop:** Debugger, Critic, and Tester agents collaborate across patch proposal, review, and validation.
 - **Auto debug workflow:** Opens an active file, infers bug context from diagnostics/demo cases, and runs the right validation command.
 - **RAG context:** Retrieves accepted fix memories, indexed code chunks, and symbol-level repository context.
-- **Safe patching:** Applies candidate diffs in sandbox copies before exposing accepted patches for live review.
+- **Safe patching:** Applies candidate diffs in sandbox copies and classifies patch risk before live review.
 - **Rollback-aware live apply:** Applies accepted patches only after confirmation and saves rollback snapshots.
-- **Evaluation harness:** Runs benchmarks, ablations, pass@k/fix@k, reward metrics, and grouped difficulty/category reports.
+- **Evaluation harness:** Runs built-in and user-seeded benchmarks, ablations, pass@k/fix@k, reward metrics, failure analysis, and grouped difficulty/category reports.
 - **Model abstraction:** Supports mock and OpenAI provider paths with transcript logging and fallback handling.
 
 ## Architecture
@@ -72,12 +72,12 @@ Full walkthrough: [docs/demo.md](docs/demo.md)
 
 ## Evaluation Snapshot
 
-Current deterministic benchmark suite:
+Current benchmark harness:
 
 | Evaluation | Cases | Success Rate | Validation Pass Rate | pass@k | fix@k |
 |---|---:|---:|---:|---:|---:|
-| Normal | 6 | 100.0% | 100.0% | 100.0% | 100.0% |
-| No-RAG Ablation | 6 | 100.0% | 100.0% | 100.0% | 100.0% |
+| Demo Suite | 6 | deterministic | deterministic | tracked | tracked |
+| Built-in Mixed Suite | 15+ | measured per run | measured per run | tracked | tracked |
 
 Reports include difficulty/category breakdowns and are exported as Markdown and JSON.
 
@@ -88,6 +88,7 @@ More detail: [docs/evaluation.md](docs/evaluation.md)
 ```powershell
 npm install
 npm run compile
+npm run unit:test
 ```
 
 Run the extension from VS Code using **Run Extension**, then execute Debug Drive commands from the Command Palette.
@@ -109,6 +110,6 @@ Debug Drive: Run Ablation Comparison
 
 ## Project Status
 
-Completed through **Phase 20: Final Demo Polish + Real-World Readiness**.
+Completed through **Phase 25: Realistic Evaluation + Final Hardening**.
 
-Debug Drive is demo-ready as a flagship AI developer-tooling project. The next improvements would be codebase refactoring, stronger real-model reliability, and larger real-world benchmark suites.
+Debug Drive is demo-ready as a flagship AI developer-tooling project. The remaining future work is external validation on larger real repositories and deeper real-model reliability testing.

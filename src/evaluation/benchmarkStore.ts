@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { BenchmarkCase, BenchmarkRunResult } from '../types/agent';
+import { builtinBenchmarkCases } from './builtinBenchmarkCases';
 import { EvaluationMetrics } from './metrics';
 
 export interface BenchmarkEvaluationSummary {
@@ -49,16 +50,18 @@ export class BenchmarkStore {
 
   loadCases(): BenchmarkCase[] {
     if (!fs.existsSync(this.benchmarkCasesPath)) {
-      return [];
+      return builtinBenchmarkCases;
     }
 
     try {
       const raw = fs.readFileSync(this.benchmarkCasesPath, 'utf8');
       const parsed = JSON.parse(raw) as BenchmarkCase[];
 
-      return Array.isArray(parsed) ? parsed.map((benchmarkCase) => this.withMetadata(benchmarkCase)) : [];
+      return this.mergeBuiltinCases(
+        Array.isArray(parsed) ? parsed.map((benchmarkCase) => this.withMetadata(benchmarkCase)) : [],
+      );
     } catch {
-      return [];
+      return builtinBenchmarkCases;
     }
   }
 
@@ -98,6 +101,20 @@ export class BenchmarkStore {
     };
   }
 
+  private mergeBuiltinCases(userCases: BenchmarkCase[]): BenchmarkCase[] {
+    const merged = new Map<string, BenchmarkCase>();
+
+    for (const benchmarkCase of builtinBenchmarkCases) {
+      merged.set(benchmarkCase.id, benchmarkCase);
+    }
+
+    for (const benchmarkCase of userCases) {
+      merged.set(benchmarkCase.id, benchmarkCase);
+    }
+
+    return Array.from(merged.values());
+  }
+
   private inferDifficulty(benchmarkCase: BenchmarkCase): BenchmarkCase['difficulty'] {
     const text = `${benchmarkCase.problemStatement} ${benchmarkCase.targetFilePath}`.toLowerCase();
 
@@ -119,6 +136,18 @@ export class BenchmarkStore {
       return 'parsing';
     }
 
+    if (text.includes('null')) {
+      return 'null-handling';
+    }
+
+    if (text.includes('api') || text.includes('retry') || text.includes('response')) {
+      return 'api-misuse';
+    }
+
+    if (text.includes('off-by-one') || text.includes('boundary') || text.includes('expiry')) {
+      return 'off-by-one';
+    }
+
     if (text.includes('theme') || text.includes('default') || text.includes('missing')) {
       return 'defaults';
     }
@@ -129,6 +158,10 @@ export class BenchmarkStore {
 
     if (text.includes('flag') || text.includes('beta')) {
       return 'state';
+    }
+
+    if (text.includes('cart') || text.includes('total') || text.includes('stock') || text.includes('dedupe')) {
+      return 'logic';
     }
 
     if (text.includes('empty') || text.includes('array')) {
@@ -180,6 +213,20 @@ export class BenchmarkStore {
         groupedMetric.averageRoundsUsed.toFixed(2),
       ].join(' | '),
     );
+    const failedRows = summary.results
+      .filter((result) => !result.success || !result.testPassed)
+      .map((result) =>
+        [
+          result.benchmarkCaseId,
+          result.mode,
+          result.difficulty ?? 'uncategorized',
+          result.category ?? 'uncategorized',
+          result.finalAction,
+          result.testPassed ? 'yes' : 'no',
+          result.roundsUsed.toString(),
+          result.reward.toFixed(3),
+        ].join(' | '),
+      );
 
     return [
       `# Debug Drive Evaluation Report`,
@@ -218,6 +265,15 @@ export class BenchmarkStore {
       'Category | Runs | Successful | Success Rate | Validation Pass Rate | Avg Reward | Avg Rounds',
       '--- | --- | --- | --- | --- | --- | ---',
       ...(categoryRows.length > 0 ? categoryRows : ['No category metadata recorded.']),
+      '',
+      '## Failure Analysis',
+      '',
+      failedRows.length > 0
+        ? 'Benchmark Case | Mode | Difficulty | Category | Final Action | Test Passed | Rounds | Reward'
+        : 'No failures were recorded in this run.',
+      ...(failedRows.length > 0
+        ? ['--- | --- | --- | --- | --- | --- | --- | ---', ...failedRows]
+        : []),
       '',
       '## Run Results',
       '',

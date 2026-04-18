@@ -60,6 +60,8 @@ export class RepositoryIndexer {
       const relativeFilePath = path.relative(repositoryPath, filePath);
       const content = fs.readFileSync(filePath, 'utf8');
       const fileChunks = this.chunker.chunk(content);
+      const imports = this.extractImports(content);
+      const relatedTestPath = this.findRelatedTestPath(relativeFilePath, files, repositoryPath);
 
       symbols.push(
         ...(await this.symbolExtractor.extract({
@@ -67,6 +69,10 @@ export class RepositoryIndexer {
           repositoryName,
           filePath: relativeFilePath,
           content,
+        })).map((symbol) => ({
+          ...symbol,
+          imports,
+          relatedTestPath,
         })),
       );
 
@@ -74,6 +80,8 @@ export class RepositoryIndexer {
         const embeddingText = [
           `Repository: ${repositoryName}`,
           `File: ${relativeFilePath}`,
+          imports.length > 0 ? `Imports: ${imports.join(', ')}` : '',
+          relatedTestPath ? `Related Test: ${relatedTestPath}` : '',
           chunk.content,
         ].join('\n');
 
@@ -87,6 +95,8 @@ export class RepositoryIndexer {
           content: chunk.content,
           startLine: chunk.startLine,
           endLine: chunk.endLine,
+          imports,
+          relatedTestPath,
           embedding: await this.embeddingProvider.embedText(embeddingText),
           embeddingProvider: this.embeddingProvider.name,
           createdAt: Date.now(),
@@ -98,6 +108,50 @@ export class RepositoryIndexer {
       chunks,
       symbols,
     };
+  }
+
+  private extractImports(content: string): string[] {
+    const imports = new Set<string>();
+    const patterns = [
+      /import\s+.*?\s+from\s+['"](.+?)['"]/g,
+      /require\(['"](.+?)['"]\)/g,
+    ];
+
+    for (const pattern of patterns) {
+      for (const match of content.matchAll(pattern)) {
+        imports.add(match[1]);
+      }
+    }
+
+    return Array.from(imports);
+  }
+
+  private findRelatedTestPath(
+    relativeFilePath: string,
+    allAbsoluteFiles: string[],
+    repositoryPath: string,
+  ): string | undefined {
+    if (/\.(test|spec)\.[A-Za-z0-9]+$/.test(relativeFilePath)) {
+      return undefined;
+    }
+
+    const extension = path.extname(relativeFilePath);
+    const withoutExtension = relativeFilePath.slice(0, -extension.length);
+    const candidates = new Set([
+      `${withoutExtension}.test${extension}`,
+      `${withoutExtension}.spec${extension}`,
+      path.join(path.dirname(relativeFilePath), '__tests__', `${path.basename(withoutExtension)}.test${extension}`),
+    ]);
+
+    for (const absoluteFile of allAbsoluteFiles) {
+      const candidateRelativePath = path.relative(repositoryPath, absoluteFile);
+
+      if (candidates.has(candidateRelativePath)) {
+        return candidateRelativePath;
+      }
+    }
+
+    return undefined;
   }
 
   private discoverSourceFiles(repositoryPath: string): string[] {

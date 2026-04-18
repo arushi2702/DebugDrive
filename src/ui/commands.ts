@@ -340,6 +340,7 @@ function saveSessionReport(
     `- Reward: ${reward.toFixed(3)}`,
     `- Accepted Patch: ${workspace?.acceptedPatchPath ?? '(none)'}`,
     `- Rollback Ready: ${workspace?.rollbackAvailable ?? false}`,
+    `- Patch Risk: ${workspace?.patchRisk?.level ?? '(unknown)'}`,
     `- Experiment Summary: ${experimentSummaryPath}`,
     '',
     '## Bug Context',
@@ -588,6 +589,15 @@ const rankedCodeSymbolRecords = retrievalStore
     strategy: strategySelection.strategy,
     strategyReason: strategySelection.reason,
     strategyExploration: strategySelection.exploration,
+    bugCategory: inferBenchmarkCategory(targetFilePath),
+    difficulty: inferBenchmarkDifficulty(targetFilePath),
+    patchStyle: strategySelection.strategy,
+    retrievalUsed: retrievalRecords.length > 0 || rankedCodeChunkRecords.length > 0,
+    validationOutcome: decision.testResult?.passed
+      ? 'passed'
+      : decision.testResult
+        ? 'failed'
+        : 'not-run',
     retrievedMemoryIds: retrievalRecords.map((record) => record.id),
     createdAt: Date.now(),
   });
@@ -629,6 +639,10 @@ const rankedCodeSymbolRecords = retrievalStore
   outputChannel.appendLine(`Critic: ${decision.critique?.approved ? 'approved' : 'not approved'}`);
   outputChannel.appendLine(`Patch Materialized: ${session.patchWorkspace?.materialized ?? false}`);
   outputChannel.appendLine(`Patch Validated: ${session.patchWorkspace?.validated ?? false}`);
+  outputChannel.appendLine(`Patch Risk: ${session.patchWorkspace?.patchRisk?.level ?? '(unknown)'}`);
+  outputChannel.appendLine(
+    `Risk Reasons: ${session.patchWorkspace?.patchRisk?.reasons.join(' | ') ?? '(none)'}`,
+  );
   outputChannel.appendLine(
   `Patch Safety: ${
     session.patchWorkspace?.materialized && session.patchWorkspace?.validated
@@ -706,6 +720,12 @@ const rankedCodeSymbolRecords = retrievalStore
       );
       outputChannel.appendLine(`  Similarity: ${rankedChunk.similarity.toFixed(4)}`);
       outputChannel.appendLine(`  Repository: ${rankedChunk.record.repositoryName}`);
+      if (rankedChunk.record.relatedTestPath) {
+        outputChannel.appendLine(`  Related Test: ${rankedChunk.record.relatedTestPath}`);
+      }
+      if (rankedChunk.record.imports && rankedChunk.record.imports.length > 0) {
+        outputChannel.appendLine(`  Imports: ${rankedChunk.record.imports.join(', ')}`);
+      }
     }
   }
 
@@ -723,6 +743,12 @@ if (rankedCodeSymbolRecords.length === 0) {
     );
     outputChannel.appendLine(`  Similarity: ${rankedSymbol.similarity.toFixed(4)}`);
     outputChannel.appendLine(`  Signature: ${rankedSymbol.record.signature}`);
+    if (rankedSymbol.record.relatedTestPath) {
+      outputChannel.appendLine(`  Related Test: ${rankedSymbol.record.relatedTestPath}`);
+    }
+    if (rankedSymbol.record.imports && rankedSymbol.record.imports.length > 0) {
+      outputChannel.appendLine(`  Imports: ${rankedSymbol.record.imports.join(', ')}`);
+    }
   }
 }
 
@@ -768,6 +794,10 @@ if (rankedCodeSymbolRecords.length === 0) {
   outputChannel.appendLine(`Materialized: ${session.patchWorkspace?.materialized ?? false}`);
   outputChannel.appendLine(`Rollback Available: ${session.patchWorkspace?.rollbackAvailable ?? false}`);
   outputChannel.appendLine(`Validated: ${session.patchWorkspace?.validated ?? false}`);
+  outputChannel.appendLine(`Patch Risk: ${session.patchWorkspace?.patchRisk?.level ?? '(unknown)'}`);
+  outputChannel.appendLine(
+    `Risk Reasons: ${session.patchWorkspace?.patchRisk?.reasons.join(' | ') ?? '(none)'}`,
+  );
   outputChannel.appendLine(`Parsed Patch Files: ${session.patchWorkspace?.parsedPatch?.files.length ?? 0}`);
   outputChannel.appendLine(`Temp File: ${session.patchWorkspace?.tempFilePath ?? '(none)'}`);
   outputChannel.appendLine(`Accepted Patch: ${session.patchWorkspace?.acceptedPatchPath ?? '(none)'}`);

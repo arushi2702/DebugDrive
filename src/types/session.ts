@@ -1,4 +1,4 @@
-import { AgentDecision, AgentMessage, BugContext, ModelTranscript, ParsedPatch, PatchProposal, StrategySelection, TestResult } from './agent';
+import { AgentDecision, AgentMessage, BugContext, ModelTranscript, ParsedPatch, PatchProposal, PatchRiskAssessment, StrategySelection, TestResult } from './agent';
 
 export interface PatchWorkspaceState {
   targetFilePath?: string;
@@ -8,6 +8,7 @@ export interface PatchWorkspaceState {
   candidateContent?: string;
   candidateDiff?: string;
   parsedPatch?: ParsedPatch;
+  patchRisk?: PatchRiskAssessment;
   acceptedPatchPath?: string;
   tempFilePath?: string;
   tempPatchedFilePath?: string;
