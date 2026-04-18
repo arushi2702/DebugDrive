@@ -1,144 +1,87 @@
 # Debug Drive
 
-Debug Drive is a VS Code extension prototype for agentic debugging. It runs a Debugger-Critic-Tester loop, retrieves related code/fix memories, validates candidate patches in a sandbox, exports accepted patch artifacts, and generates benchmark/ablation reports.
+**Debug Drive is an agentic VS Code debugging assistant that proposes patches, critiques them, validates them in a sandbox, and evaluates results with benchmark and ablation reports.**
 
-The goal is to build a safe debugging assistant that can reason over code, propose fixes, test them outside the live workspace, and learn from previous debugging sessions.
+It combines multi-agent debugging, retrieval-augmented context, sandboxed patch validation, rollback-safe artifacts, model-provider abstraction, and reward-based learning traces into one developer-tooling prototype.
 
-## Current Status
+## Key Features
 
-Completed through **Phase 10**.
+- Multi-agent debugging with a Debugger, Critic, and Tester loop
+- Sandbox-based patch validation with no automatic live workspace mutation
+- Retrieval-augmented debugging over accepted fixes and indexed code chunks
+- Mock and OpenAI model-provider paths with safe fallback handling
+- Benchmark and ablation evaluation with Markdown/JSON reports
 
-Debug Drive currently supports:
-
-- Multi-agent debugging sessions with Debugger, Critic, and Tester agents
-- RAG-style retrieval over accepted fixes and indexed code chunks
-- Learning records with rewards, success rate, and reward explanations
-- Model provider abstraction with a deterministic mock provider for demos
-- Structured model transcripts and parser fallback handling
-- Unified diff parsing and sandbox patch application
-- Accepted patch export with rollback metadata
-- Benchmark evaluation with success rate, validation pass rate, pass@k, and fix@k
-- Ablation comparison for normal vs no-RAG runs
-- Markdown and JSON evaluation reports
-- A reliable TypeScript demo bug path
-
-## Demo
-
-The demo bug lives in:
+## Architecture
 
 ```text
-src/demo/items.ts
+VS Code Command
+      |
+      v
+DebugCoordinator
+      |
+      +-- Retrieval Layer
+      |     +-- fix memories + code chunks
+      |
+      +-- Debugger Agent
+      |     +-- model-backed patch proposal
+      |
+      +-- Critic Agent
+      |     +-- patch review + revision feedback
+      |
+      +-- Tester Agent
+            +-- sandbox patch application + validation
 ```
 
-The live file intentionally returns `undefined` for an empty array:
+Debug Drive validates candidate patches in sandbox project copies and exports accepted patch artifacts for review.
 
-```ts
-return undefined as unknown as string[];
-```
+## Quick Demo
 
-Run:
+1. Run the failing demo test:
 
 ```powershell
 npm run demo:test
 ```
 
-Expected before Debug Drive runs:
-
-```text
-AssertionError: undefined !== []
-```
-
-Then launch the extension and run:
+2. Launch the extension and run:
 
 ```text
 Debug Drive: Run Debug Session
 ```
 
-Use these inputs:
+3. Observe:
 
-```text
-Bug description:
-getItems returns undefined for an empty array but should return []
+- Patch proposed
+- Critic approved
+- Sandbox validation passed
+- Accepted patch artifact exported
+- Live repository remains unchanged by default
 
-Validation command:
-npm run demo:test
+Full walkthrough: [docs/demo.md](docs/demo.md)
 
-Error output:
-AssertionError: undefined !== [] at getItems([])
-```
+## Why It Matters
 
-Expected Debug Drive result:
+Debug Drive explores how AI agents can:
 
-```text
-Next Action: accept
-Critic Approved: true
-Test Passed: true
-```
+- Safely debug code without directly mutating live environments
+- Reuse past fixes and repository context through retrieval
+- Validate patches with execution feedback
+- Evaluate debugging behavior with reproducible benchmarks
 
-The accepted patch is exported as an artifact instead of being applied directly to the live workspace:
+This bridges LLM agents, software engineering tooling, and research-style evaluation.
 
-```diff
--    return undefined as unknown as string[];
-+    return [];
-```
+## Evaluation Snapshot
 
-## Commands
+Current deterministic demo benchmark suite:
 
-Available VS Code commands:
+| Evaluation | Cases | Success Rate | Validation Pass Rate | pass@k | fix@k |
+|---|---:|---:|---:|---:|---:|
+| Normal | 6 | 100.0% | 100.0% | 100.0% | 100.0% |
+| No-RAG Ablation | 6 | 100.0% | 100.0% | 100.0% | 100.0% |
 
-```text
-Debug Drive: Run Debug Session
-Debug Drive: Index Repository
-Debug Drive: Apply Accepted Patch
-Debug Drive: Seed Benchmark Case
-Debug Drive: Run Benchmarks
-Debug Drive: Run Ablation Comparison
-```
+More detail: [docs/evaluation.md](docs/evaluation.md)
 
-## Evaluation
-
-Debug Drive can run saved benchmark cases and produce reports under:
-
-```text
-.debug-drive-memory/benchmark-summaries/
-```
-
-Current report metrics include:
-
-- Success rate
-- Validation pass rate
-- pass@k
-- fix@k
-- Average reward
-- Average rounds used
-- Retrieved memory count
-- Retrieved code chunk count
-- Retrieval usefulness metrics
-
-Generated `.debug-drive/` and `.debug-drive-memory/` artifacts are ignored by Git.
-
-### Current Demo Benchmark Suite
-
-The current demo benchmark suite contains 6 TypeScript cases:
-
-- Empty array handling
-- Missing default value
-- Whitespace and empty-value parsing
-- One-based pagination
-- Safe feature-flag default
-- Existing seeded compile validation case
-
-Latest demo benchmark result:
-
-```text
-Benchmark Cases: 6
-Success Rate: 100.0%
-Validation Pass Rate: 100.0%
-pass@k: 100.0%
-fix@k: 100.0%
-Average Rounds Used: 1.17
-
-## Development
+## Setup
 
 Install dependencies:
 
@@ -160,26 +103,24 @@ npm run demo:test
 
 Run the extension from VS Code using `Run Extension`, then execute Debug Drive commands from the Command Palette.
 
-## Model Provider Configuration
-
-Debug Drive supports a deterministic mock provider for demos and an OpenAI provider for real model-backed patch proposals.
-
-By default, Debug Drive uses:
+## Commands
 
 ```text
-debugDrive.modelProvider = mock
+Debug Drive: Run Debug Session
+Debug Drive: Index Repository
+Debug Drive: Apply Accepted Patch
+Debug Drive: Seed Benchmark Case
+Debug Drive: Run Benchmarks
+Debug Drive: Run Ablation Comparison
+```
 
-## Roadmap
+## Project Status
 
-Planned next phases:
+Completed through **Phase 13: Expanded Evaluation Proof**.
 
-- Phase 11: Real LLM provider and stronger patch flow
-- Phase 12: Product UX polish
-- Phase 13: Expanded benchmark suite and evaluation proof
-- Phase 14: Launch packaging with screenshots and architecture diagram
+Next planned phases:
+
+- Phase 14: Launch packaging with screenshots and architecture polish
 - Phase 15: Symbol-aware repository intelligence
 - Phase 16: Strategy learning / RL-style policy selection
 
-## Prototype Note
-
-Debug Drive is a work in progress.
