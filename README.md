@@ -117,6 +117,27 @@ Current report metrics include:
 
 Generated `.debug-drive/` and `.debug-drive-memory/` artifacts are ignored by Git.
 
+### Current Demo Benchmark Suite
+
+The current demo benchmark suite contains 6 TypeScript cases:
+
+- Empty array handling
+- Missing default value
+- Whitespace and empty-value parsing
+- One-based pagination
+- Safe feature-flag default
+- Existing seeded compile validation case
+
+Latest demo benchmark result:
+
+```text
+Benchmark Cases: 6
+Success Rate: 100.0%
+Validation Pass Rate: 100.0%
+pass@k: 100.0%
+fix@k: 100.0%
+Average Rounds Used: 1.17
+
 ## Development
 
 Install dependencies:

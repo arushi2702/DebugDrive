@@ -65,7 +65,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "demo:test": "npm run compile && node ./out/demo/items.test.js",
+    "demo:test": "npm run compile && node ./out/demo/items.test.js && node ./out/demo/defaults.test.js && node ./out/demo/parser.test.js && node ./out/demo/pagination.test.js && node ./out/demo/flags.test.js",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",

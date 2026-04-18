@@ -58,6 +58,33 @@ function findBenchmarkRepositoryRoot(startPath: string): string {
   }
 }
 
+function findCommandRepositoryRoot(activeEditor: vscode.TextEditor | undefined): string | undefined {
+  if (activeEditor) {
+    return path.resolve(findBenchmarkRepositoryRoot(activeEditor.document.uri.fsPath));
+  }
+
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+  if (!workspaceFolder) {
+    return undefined;
+  }
+
+  return path.resolve(findBenchmarkRepositoryRoot(workspaceFolder.uri.fsPath));
+}
+
+function findCommandRepositoryRootOrWarn(
+  activeEditor: vscode.TextEditor | undefined,
+  action: string,
+): string | undefined {
+  const repositoryPath = findCommandRepositoryRoot(activeEditor);
+
+  if (!repositoryPath) {
+    vscode.window.showWarningMessage(`Open a workspace folder or source file before ${action}.`);
+  }
+
+  return repositoryPath;
+}
+
 async function runDebugSessionWithCoordinator(
   coordinator: DebugCoordinator,
   outputChannel: vscode.OutputChannel,
@@ -560,18 +587,11 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
 
     const runBenchmarksCommand = vscode.commands.registerCommand('debug-drive.runBenchmarks', async () => {
     const activeEditor = vscode.window.activeTextEditor;
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const repositoryPath = findCommandRepositoryRootOrWarn(activeEditor, 'running benchmarks');
 
-    if (!activeEditor && !workspaceFolder) {
-      vscode.window.showWarningMessage('Open a workspace folder or source file before running benchmarks.');
+    if (!repositoryPath) {
       return;
     }
-
-    const repositoryPath = path.resolve(
-      activeEditor
-        ? findBenchmarkRepositoryRoot(activeEditor.document.uri.fsPath)
-        : findBenchmarkRepositoryRoot(workspaceFolder!.uri.fsPath),
-    );
 
     const selectedMode = await vscode.window.showQuickPick(
       [
@@ -673,18 +693,11 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
     'debug-drive.runAblationComparison',
     async () => {
       const activeEditor = vscode.window.activeTextEditor;
-      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      const repositoryPath = findCommandRepositoryRootOrWarn(activeEditor, 'running ablations');
 
-      if (!activeEditor && !workspaceFolder) {
-        vscode.window.showWarningMessage('Open a workspace folder or source file before running ablations.');
+      if (!repositoryPath) {
         return;
       }
-
-      const repositoryPath = path.resolve(
-        activeEditor
-          ? findBenchmarkRepositoryRoot(activeEditor.document.uri.fsPath)
-          : findBenchmarkRepositoryRoot(workspaceFolder!.uri.fsPath),
-      );
 
       const repositoryName = path.basename(repositoryPath);
       const benchmarkStore = new BenchmarkStore(path.join(repositoryPath, '.debug-drive-memory'));

@@ -62,7 +62,7 @@ export class BenchmarkRunner {
       filePath: benchmarkCase.targetFilePath,
       language: benchmarkCase.language,
       problemStatement: benchmarkCase.problemStatement,
-      failingCommand: benchmarkCase.failingCommand,
+      failingCommand: this.resolveValidationCommand(benchmarkCase),
       errorOutput: benchmarkCase.errorOutput,
       relevantCode,
     };
@@ -91,5 +91,21 @@ export class BenchmarkRunner {
       success: decision.nextAction === benchmarkCase.expectedFinalAction,
       createdAt: Date.now(),
     };
+  }
+
+  private resolveValidationCommand(benchmarkCase: BenchmarkCase): string {
+    if (benchmarkCase.failingCommand !== 'npm run demo:test') {
+      return benchmarkCase.failingCommand;
+    }
+
+    const demoTestCommands: Record<string, string> = {
+      [path.join('src', 'demo', 'items.ts')]: 'npm run compile && node ./out/demo/items.test.js',
+      [path.join('src', 'demo', 'defaults.ts')]: 'npm run compile && node ./out/demo/defaults.test.js',
+      [path.join('src', 'demo', 'parser.ts')]: 'npm run compile && node ./out/demo/parser.test.js',
+      [path.join('src', 'demo', 'pagination.ts')]: 'npm run compile && node ./out/demo/pagination.test.js',
+      [path.join('src', 'demo', 'flags.ts')]: 'npm run compile && node ./out/demo/flags.test.js',
+    };
+
+    return demoTestCommands[benchmarkCase.targetFilePath] ?? benchmarkCase.failingCommand;
   }
 }

@@ -1,5 +1,49 @@
 import { ModelProvider, ModelRequest, ModelResponse } from './modelProvider';
 
+function buildSingleLinePatch(
+  targetFile: string,
+  summary: string,
+  rationale: string,
+  buggyLine: string,
+  fixedLine: string,
+  previousCritique: string | undefined,
+): ModelResponse {
+  return {
+    content: JSON.stringify(
+      {
+        summary: `${summary} in ${targetFile}`,
+        rationale: [
+          rationale,
+          'The candidate patch replaces the incorrect line with the expected behavior.',
+          previousCritique ? `Addressing critique: ${previousCritique}` : undefined,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        diffText: [
+          `--- a/${targetFile}`,
+          `+++ b/${targetFile}`,
+          '@@',
+          `-${buggyLine}`,
+          `+${fixedLine}`,
+        ].join('\n'),
+        candidateContent: [
+          `// Demo model candidate content for ${targetFile}`,
+          fixedLine,
+        ].join('\n'),
+        confidence: 0.82,
+      },
+      null,
+      2,
+    ),
+    providerName: 'mock-provider',
+    modelName: 'mock-debug-drive-model',
+    rawResponse: {
+      targetFile,
+      demoPatch: true,
+    },
+  };
+}
+
 function extractTargetFile(content: string): string {
   const match = content.match(/^File:\s*(.+)$/m);
   return match?.[1]?.trim() || 'unknown-file';
@@ -76,6 +120,62 @@ function buildDemoPatch(targetFile: string, previousCritique: string | undefined
   };
 }
 
+function buildDefaultsDemoPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  const buggyLine = "  return preferences.theme ?? '';";
+  const fixedLine = "  return preferences.theme ?? 'light';";
+
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix missing default theme',
+    'The default theme should be light when no user preference is provided.',
+    buggyLine,
+    fixedLine,
+    previousCritique,
+  );
+}
+
+function buildParserDemoPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  const buggyLine = '  return input.split(\',\').map((tag) => tag);';
+  const fixedLine = "  return input.split(',').map((tag) => tag.trim()).filter((tag) => tag.length > 0);";
+
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix tag parsing whitespace and empty values',
+    'The parser should trim tags and remove empty values.',
+    buggyLine,
+    fixedLine,
+    previousCritique,
+  );
+}
+
+function buildPaginationDemoPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  const buggyLine = '  return page * pageSize;';
+  const fixedLine = '  return (page - 1) * pageSize;';
+
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix one-based pagination start index',
+    'The page number is one-based, so page 1 should start at index 0.',
+    buggyLine,
+    fixedLine,
+    previousCritique,
+  );
+}
+
+function buildFlagsDemoPatch(targetFile: string, previousCritique: string | undefined): ModelResponse {
+  const buggyLine = '  return flags.enableBeta ?? true;';
+  const fixedLine = '  return flags.enableBeta ?? false;';
+
+  return buildSingleLinePatch(
+    targetFile,
+    'Fix unsafe beta flag default',
+    'Beta features should be disabled unless explicitly enabled.',
+    buggyLine,
+    fixedLine,
+    previousCritique,
+  );
+}
+
 export class MockModelProvider implements ModelProvider {
   readonly providerName = 'mock-provider';
   readonly modelName = 'mock-debug-drive-model';
@@ -100,6 +200,22 @@ export class MockModelProvider implements ModelProvider {
       messageContent.includes('return undefined as unknown as string[]')
     ) {
       return buildDemoPatch(targetFile, previousCritique);
+    }
+
+        if (targetFile.endsWith('src\\demo\\defaults.ts') || targetFile.endsWith('src/demo/defaults.ts')) {
+      return buildDefaultsDemoPatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\parser.ts') || targetFile.endsWith('src/demo/parser.ts')) {
+      return buildParserDemoPatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\pagination.ts') || targetFile.endsWith('src/demo/pagination.ts')) {
+      return buildPaginationDemoPatch(targetFile, previousCritique);
+    }
+
+    if (targetFile.endsWith('src\\demo\\flags.ts') || targetFile.endsWith('src/demo/flags.ts')) {
+      return buildFlagsDemoPatch(targetFile, previousCritique);
     }
 
     return {
