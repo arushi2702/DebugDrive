@@ -38,9 +38,29 @@
   "command": "debug-drive.runAblationComparison",
   "title": "Debug Drive: Run Ablation Comparison"
 }
+    ],
+    "configuration": {
+  "title": "Debug Drive",
+  "properties": {
+    "debugDrive.modelProvider": {
+      "type": "string",
+      "enum": ["mock", "openai"],
+      "default": "mock",
+      "description": "Model provider used by Debug Drive."
+    },
+    "debugDrive.openaiModel": {
+      "type": "string",
+      "default": "gpt-4o-mini",
+      "description": "OpenAI model used when debugDrive.modelProvider is openai."
+    },
+    "debugDrive.openaiApiKey": {
+      "type": "string",
+      "default": "",
+      "description": "Optional OpenAI API key. If empty, Debug Drive reads OPENAI_API_KEY from the environment."
+    }
+  }
+}
 
-
-    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

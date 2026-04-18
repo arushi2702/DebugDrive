@@ -139,6 +139,15 @@ npm run demo:test
 
 Run the extension from VS Code using `Run Extension`, then execute Debug Drive commands from the Command Palette.
 
+## Model Provider Configuration
+
+Debug Drive supports a deterministic mock provider for demos and an OpenAI provider for real model-backed patch proposals.
+
+By default, Debug Drive uses:
+
+```text
+debugDrive.modelProvider = mock
+
 ## Roadmap
 
 Planned next phases:

@@ -13,6 +13,7 @@ import { BenchmarkRunResult, BugContext } from '../types/agent';
 import { BenchmarkStore } from '../evaluation/benchmarkStore';
 import { BenchmarkRunner } from '../evaluation/benchmarkRunner';
 import { MetricsCalculator } from '../evaluation/metrics';
+import { ModelProviderFactory, ModelProviderSelection } from '../llm/modelProviderFactory';
 
 const RETRIEVAL_TOP_K = 3;
 const SIMILARITY_THRESHOLD = 0.75;
@@ -60,6 +61,7 @@ function findBenchmarkRepositoryRoot(startPath: string): string {
 async function runDebugSessionWithCoordinator(
   coordinator: DebugCoordinator,
   outputChannel: vscode.OutputChannel,
+  providerSelection?: ModelProviderSelection,
 ): Promise<void> {
   const activeEditor = vscode.window.activeTextEditor;
 
@@ -257,6 +259,9 @@ async function runDebugSessionWithCoordinator(
   outputChannel.appendLine(`Repository Namespace: ${repositoryName}`);
   outputChannel.appendLine(`File: ${bugContext.filePath}`);
   outputChannel.appendLine(`Language: ${bugContext.language || '(unknown)'}`);
+  outputChannel.appendLine(`Model Provider: ${providerSelection?.providerMode ?? 'mock'}`);
+  outputChannel.appendLine(`Model Name: ${providerSelection?.modelName ?? 'mock-debug-drive-model'}`);
+  outputChannel.appendLine(`Provider Fallback: ${providerSelection?.fallbackReason ?? '(none)'}`);
   outputChannel.appendLine(`Retrieved Memories Available: ${retrievalRecords.length}`);
   outputChannel.appendLine(`New Memory Saved: ${retrievalRecordSaved}`);
   outputChannel.appendLine(`Retrieval Top K: ${RETRIEVAL_TOP_K}`);
@@ -346,6 +351,7 @@ async function runDebugSessionWithCoordinator(
       outputChannel.appendLine(`  Parsed: ${transcript.parsedSuccessfully}`);
       outputChannel.appendLine(`  Parse Error: ${transcript.parseError ?? '(none)'}`);
       outputChannel.appendLine(`  Prompt Messages: ${transcript.promptMessages.length}`);
+      outputChannel.appendLine(`  Response Characters: ${transcript.responseContent.length}`);
     }
   }
 
@@ -389,14 +395,23 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
   const outputChannel = vscode.window.createOutputChannel('Debug Drive');
 
   const runSessionCommand = vscode.commands.registerCommand('debug-drive.runDebugSession', async () => {
-    await runDebugSessionWithCoordinator(new DebugCoordinator(), outputChannel);
+    const providerSelection = new ModelProviderFactory().create();
+    const coordinator = new DebugCoordinator(undefined, providerSelection.provider);
+
+    await runDebugSessionWithCoordinator(coordinator, outputChannel, providerSelection);
   });
 
   const runMalformedModelSessionCommand = vscode.commands.registerCommand(
     'debug-drive.runMalformedModelDebugSession',
     async () => {
-      const coordinator = new DebugCoordinator(undefined, new MalformedMockModelProvider());
-      await runDebugSessionWithCoordinator(coordinator, outputChannel);
+      const malformedProvider = new MalformedMockModelProvider();
+      const coordinator = new DebugCoordinator(undefined, malformedProvider);
+      await runDebugSessionWithCoordinator(coordinator, outputChannel, {
+        provider: malformedProvider,
+        providerMode: 'mock',
+        modelName: 'malformed-mock-debug-drive-model',
+        fallbackReason: 'Malformed mock provider command selected for parser fallback testing.',
+      });
     },
   );
 
