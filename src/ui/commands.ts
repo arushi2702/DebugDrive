@@ -153,6 +153,16 @@ async function runDebugSessionWithCoordinator(
     relevantCode,
   };
 
+  if (
+  failingCommand?.trim() === 'npm run demo:test' &&
+  bugContext.filePath !== path.join('src', 'demo', 'items.ts')
+) {
+  vscode.window.showWarningMessage(
+    'The demo validation command targets src/demo/items.ts. Open src/demo/items.ts before running the demo session.',
+  );
+  return;
+}
+
   const session = coordinator.createSession(bugContext);
   const decision = await coordinator.runSession(
     session,
@@ -259,6 +269,27 @@ async function runDebugSessionWithCoordinator(
   outputChannel.appendLine(`Repository Namespace: ${repositoryName}`);
   outputChannel.appendLine(`File: ${bugContext.filePath}`);
   outputChannel.appendLine(`Language: ${bugContext.language || '(unknown)'}`);
+
+  outputChannel.appendLine('');
+  outputChannel.appendLine('--- Session Summary ---');
+  outputChannel.appendLine(`Status: ${decision.nextAction.toUpperCase()}`);
+  outputChannel.appendLine(`Validation: ${decision.testResult?.passed ? 'passed' : 'failed or not run'}`);
+  outputChannel.appendLine(`Critic: ${decision.critique?.approved ? 'approved' : 'not approved'}`);
+  outputChannel.appendLine(`Patch Materialized: ${session.patchWorkspace?.materialized ?? false}`);
+  outputChannel.appendLine(`Patch Validated: ${session.patchWorkspace?.validated ?? false}`);
+  outputChannel.appendLine(
+  `Patch Safety: ${
+    session.patchWorkspace?.materialized && session.patchWorkspace?.validated
+      ? 'sandbox-validated'
+      : 'not-validated'
+  }`,
+);
+  outputChannel.appendLine(`Accepted Patch: ${session.patchWorkspace?.acceptedPatchPath ?? '(none)'}`);
+  outputChannel.appendLine(
+    `Live Apply: ${session.patchWorkspace?.acceptedPatchPath && session.patchWorkspace?.rollbackAvailable ? 'review-required' : 'not-ready'}`,
+  );
+  outputChannel.appendLine('');
+
   outputChannel.appendLine(`Model Provider: ${providerSelection?.providerMode ?? 'mock'}`);
   outputChannel.appendLine(`Model Name: ${providerSelection?.modelName ?? 'mock-debug-drive-model'}`);
   outputChannel.appendLine(`Provider Fallback: ${providerSelection?.fallbackReason ?? '(none)'}`);
@@ -266,6 +297,7 @@ async function runDebugSessionWithCoordinator(
   outputChannel.appendLine(`New Memory Saved: ${retrievalRecordSaved}`);
   outputChannel.appendLine(`Retrieval Top K: ${RETRIEVAL_TOP_K}`);
   outputChannel.appendLine(`Similarity Threshold: ${SIMILARITY_THRESHOLD}`);
+  outputChannel.appendLine(`Retrieved Code Chunks Available: ${rankedCodeChunkRecords.length}`);
   outputChannel.appendLine(`Current Reward: ${reward}`);
   outputChannel.appendLine(`Learning Runs: ${totalLearningRuns}`);
   outputChannel.appendLine(`Accepted Runs: ${acceptedLearningRuns}`);
@@ -312,7 +344,7 @@ async function runDebugSessionWithCoordinator(
   outputChannel.appendLine('--- Retrieved Code Context ---');
 
   if (rankedCodeChunkRecords.length === 0) {
-    outputChannel.appendLine('No semantically relevant code chunks found.');
+    outputChannel.appendLine('No semantically relevant code chunks found for this run.');
   } else {
     for (const rankedChunk of rankedCodeChunkRecords) {
       outputChannel.appendLine(
@@ -339,6 +371,11 @@ async function runDebugSessionWithCoordinator(
   outputChannel.appendLine(session.latestPatch?.diffText ?? 'No diff generated.');
   outputChannel.appendLine('');
   outputChannel.appendLine('--- Model Transcripts ---');
+  outputChannel.appendLine(`Transcript Count: ${session.modelTranscripts.length}`);
+  outputChannel.appendLine(
+  `Parsed Successfully: ${session.modelTranscripts.filter((transcript) => transcript.parsedSuccessfully).length}`,
+);
+  outputChannel.appendLine('');
 
   if (session.modelTranscripts.length === 0) {
     outputChannel.appendLine('No model transcripts recorded.');
@@ -619,8 +656,12 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
     outputChannel.appendLine(`Average Rounds Used: ${metrics.averageRoundsUsed.toFixed(2)}`);
     outputChannel.appendLine(`Average Retrieved Memories: ${metrics.averageRetrievedMemoryCount.toFixed(2)}`);
     outputChannel.appendLine(`Average Retrieved Code Chunks: ${metrics.averageRetrievedCodeChunkCount.toFixed(2)}`);
-    outputChannel.appendLine(`Benchmark Summary: ${benchmarkSummaryPath}`);
-    outputChannel.appendLine(`Benchmark Report: ${benchmarkReportPath}`);
+    outputChannel.appendLine('');
+
+    outputChannel.appendLine('--- Report Artifacts ---');
+    outputChannel.appendLine(`Benchmark Summary JSON: ${benchmarkSummaryPath}`);
+    outputChannel.appendLine(`Benchmark Report MD: ${benchmarkReportPath}`);
+
     outputChannel.appendLine(`Retrieval Used Runs: ${metrics.retrievalUsedRuns}`);
     outputChannel.appendLine(`Retrieval Success Rate: ${(metrics.retrievalSuccessRate * 100).toFixed(1)}%`);
     outputChannel.appendLine(`No-Retrieval Success Rate: ${(metrics.noRetrievalSuccessRate * 100).toFixed(1)}%`);
@@ -715,8 +756,9 @@ export function registerDebugDriveCommands(context: vscode.ExtensionContext): vo
       const ablationSummaryPath = benchmarkStore.saveEvaluationSummary(ablationSummary);
       const ablationReportPath = benchmarkStore.saveEvaluationReport(ablationSummary);
 
-      outputChannel.appendLine(`Ablation Summary: ${ablationSummaryPath}`);
-      outputChannel.appendLine(`Ablation Report: ${ablationReportPath}`);
+      outputChannel.appendLine('--- Report Artifacts ---');
+      outputChannel.appendLine(`Ablation Summary JSON: ${ablationSummaryPath}`);
+      outputChannel.appendLine(`Ablation Report MD: ${ablationReportPath}`);
 
       vscode.window.showInformationMessage('Debug Drive ablation comparison complete.');
     },
